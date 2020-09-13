@@ -1,7 +1,7 @@
 const {Keystone}=require('@keystonejs/keystone');
 const {MongooseAdapter}=require('@keystonejs/adapter-mongoose');
 const {GraphQLApp}=require('@keystonejs/app-graphql');
-const {Text,DateTimeUtc} =require('@keystonejs/fields');
+const {Text,DateTimeUtc, Relationship, Integer} =require('@keystonejs/fields');
 const { createItem ,getItems,updateItem} = require('@keystonejs/server-side-graphql-client');
 const {NextApp} =require('@keystonejs/app-next');
 
@@ -81,10 +81,51 @@ keystone.createList('Script',{
 		name:{
 			type:Text,
 			defaultValue:''
+		},
+		scriptLines:{
+			type:Relationship,
+			ref:'ScriptLine.script',
+			many:true
 		}
 	}
 });
-//add identifer for twilo
+keystone.createList('ScriptLine',{
+	fields:{
+		script:{
+			type:Relationship,
+			ref:'Script.scriptLines'
+		},
+		instructions:{
+			type:Text,
+			defaultValue:''
+		},
+		order:{
+			type:Integer,
+			defaultValue:0
+		},
+		en:{
+			type:Text,
+			defaultValue:''
+		},
+		es:{
+			type:Text,
+			defaultValue:''
+		},
+		parent:{
+			type:Relationship,
+			ref:'ScriptLine.children',
+			
+			
+		},
+		children:{
+			type:Relationship,
+			ref:'ScriptLine.parent',
+			many:true
+		}
+	}
+	
+});
+
 keystone.createList('SentText',{
 	fields:{
 		content:{
