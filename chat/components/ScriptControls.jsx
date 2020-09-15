@@ -1,4 +1,5 @@
 import {useState,useEffect} from 'react';
+import { ConnectionPolicyTargetList } from 'twilio/lib/rest/voice/v1/connectionPolicy/connectionPolicyTarget';
 import {queryGraphQL} from '../lib/graphql';
 
 
@@ -26,6 +27,15 @@ export function ScriptControls(props){
 						children{
 							id
 						}
+					},
+					contacts{
+						id
+						name
+						firstName
+						middleName
+						lastName
+						vanid
+						phone
 					}
 				}
 			}
@@ -65,7 +75,7 @@ function ScriptEditor(props){
 		{props.script.name}
 		<ScriptLineEditorList script={props.script} fetchData={props.fetchData} />
 		<AddScriptLineButton fetchData={props.fetchData} script={props.script}/>
-		
+		<ContactEditor fetchData={props.fetchData} script={props.script}/>
 		<pre>
 			{JSON.stringify(props.script,null,'\t')}
 		</pre>
@@ -404,4 +414,184 @@ function CreateScriptBox(props){
 		<button onClick={()=>{createScript()}}>New Script</button>
 	
 	</div>)
+}
+
+function ContactEditor(props){
+	const [showAddContact,setShowAddContact] =useState(false);
+	const hideAddContact=()=>{
+		setShowAddContact(false);
+	}
+	return (<div>Contacts
+		<button onClick={()=>{setShowAddContact(!showAddContact)}}>New Contact</button>
+		{showAddContact&&(
+			<AddContactEditor script={props.script} fetchData={props.fetchData} hideAddContact={hideAddContact}/>
+		)}
+		<ContactTable script={props.script} fetchData={props.fetchData}/>
+	</div>);
+}
+
+
+function AddContactEditor(props){
+	const [firstName,setFirstName]=useState('');
+	const [middleName,setMiddleName]=useState('');
+	const [lastName,setLastName]=useState('');
+	const [vanID,setVanID]=useState('');
+	const [phone,setPhone]=useState('');
+
+	const addContact=async (scriptID)=>{
+		await queryGraphQL(`
+			mutation ($scriptID:ID!,$fn:String!,$mn:String!,$ln:String!,$phone:String!,$vanid:String!){
+				updateScript(id:$scriptID,data:{contacts:{
+					create:{
+						firstName:$fn,
+						middleName:$mn,
+						lastName:$ln,
+						phone:$phone,
+						vanid:$vanid
+					}
+				}}){
+					id
+				}
+			}
+		`,{
+			scriptID:scriptID,
+			fn:firstName,
+			mn:middleName,
+			ln:lastName,
+			phone:phone,
+			vanid:vanID
+		});
+		props.hideAddContact();
+		props.fetchData();
+	}
+
+	return (<div>
+		First Name:<input value={firstName} onChange={(ev)=>{setFirstName(ev.target.value)}}/><br/>
+		Middle Name:<input value={middleName} onChange={(ev)=>{setMiddleName(ev.target.value)}}/><br/>
+		Last Name:<input value={lastName} onChange={(ev)=>{setLastName(ev.target.value)}}/><br/>
+		VAN ID<input value={vanID} onChange={(ev)=>{setVanID(ev.target.value)}}/><br/>
+		Phone<input value={phone} onChange={(ev)=>{setPhone(ev.target.value)}}/><br/>
+		<button onClick={()=>{ addContact(props.script.id)}}>Save Contact</button>
+		</div>)
+}
+function ContactTable(props){
+	const [editRows,setEditRows]=useState([]);
+
+	const toggleEditRows=(rowid)=>{
+		if(editRows.includes(rowid)){
+			setEditRows(editRows.filter((el)=>{return el!==rowid}));
+		}
+		else{
+			setEditRows(editRows.concat([rowid]))
+		}
+	}
+
+	let rows=props.script.contacts.map((el)=>{
+		if(editRows.includes(el.id)){
+			return <ContactTableEditRow key={el.id} contact={el} fetchData={props.fetchData} toggleEditRows={toggleEditRows}/> 
+		}
+		else{
+			return <ContactTableViewRow key={el.id} contact={el} fetchData={props.fetchData} toggleEditRows={toggleEditRows}/>;
+		}
+		
+	});
+	let tableheadingStyle={position:'sticky',top:'0px',backgroundColor:'rgb(200,200,200)'};
+	return(<table>
+		<thead>
+			<tr>
+				<th style={tableheadingStyle}>Name</th>
+				<th style={tableheadingStyle}>VanID</th>
+				<th style={tableheadingStyle}>Phone</th>
+				<th style={tableheadingStyle}>Controls</th>
+			</tr>
+		</thead>
+		<tbody>
+			{rows}
+		</tbody>
+	</table>)
+}
+
+function ContactTableViewRow(props){
+
+	const deleteContact=async (id)=>{
+		await queryGraphQL(`
+			mutation ($id:ID!){
+				deleteContact(id:$id){
+					id
+				}
+			}`,
+			{id:id}
+		);
+		props.fetchData();
+	}
+
+	return (
+		<tr>
+			<td>{props.contact.name} </td>
+			<td>{props.contact.vanid} </td>
+			<td>{props.contact.phone} </td>
+			<td>
+				<button onClick={()=>{props.toggleEditRows(props.contact.id)}}> Edit</button>
+				<button onClick={()=>{deleteContact(props.contact.id)}}>Delete</button>
+			</td>
+		</tr>
+	);
+}
+
+function ContactTableEditRow(props){
+
+	// <td>{props.contact.name} </td>
+	// 		<td>{props.contact.vanid} </td>
+	// 		<td>{props.contact.phone} </td>
+	const [firstName,setFirstName]=useState(props.contact.firstName);
+	const [middleName,setMiddleName]=useState(props.contact.middleName);
+	const [lastName,setLastName]=useState(props.contact.lastName);
+	const [vanID,setVanID]=useState(props.contact.vanid);
+	const [phone,setPhone]=useState(props.contact.phone);
+
+
+	const updateContact=async ()=>{
+		await queryGraphQL(`
+			mutation ($id:ID!,$fn:String!,$mn:String!,$ln:String!,$phone:String!,$vanid:String!){
+				updateContact(id:$id,data:{
+					firstName:$fn,
+					middleName:$mn,
+					lastName:$ln,
+					vanid:$vanid,
+					phone:$phone
+				}){
+					id
+				}
+			}`,
+			{
+				id:props.contact.id,
+				fn:firstName,
+				mn:middleName,
+				ln:lastName,
+				vanid:vanID,
+				phone:phone
+			});
+		props.toggleEditRows(props.contact.id);
+		props.fetchData();
+	}
+
+	return(
+		<tr>
+			<td>
+				<input value={firstName} onChange={(ev)=>{setFirstName(ev.target.value)}}/> 
+				<input value={middleName} onChange={(ev)=>{setMiddleName(ev.target.value)}}/> 
+				<input value={lastName} onChange={(ev)=>{setLastName(ev.target.value)}}/> 
+			</td>
+			<td>
+				<input value={vanID} onChange={(ev)=>{setVanID(ev.target.value)}}/> 
+			</td>
+			<td>
+				<input value={phone} onChange={(ev)=>{setPhone(ev.target.value)}}/> 
+			</td>
+			<td>
+				<button onClick={()=>{props.toggleEditRows(props.contact.id)}}> Don't Save</button>
+				<button onClick={()=>{updateContact()}}>Save</button>
+			</td>
+		</tr>
+	);
 }

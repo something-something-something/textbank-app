@@ -1,7 +1,7 @@
 const {Keystone}=require('@keystonejs/keystone');
 const {MongooseAdapter}=require('@keystonejs/adapter-mongoose');
 const {GraphQLApp}=require('@keystonejs/app-graphql');
-const {Text,DateTimeUtc, Relationship, Integer} =require('@keystonejs/fields');
+const {Text,DateTimeUtc, Relationship, Integer,Virtual, Select} =require('@keystonejs/fields');
 const { createItem ,getItems,updateItem} = require('@keystonejs/server-side-graphql-client');
 const {NextApp} =require('@keystonejs/app-next');
 
@@ -85,6 +85,11 @@ keystone.createList('Script',{
 		scriptLines:{
 			type:Relationship,
 			ref:'ScriptLine.script',
+			many:true
+		},
+		contacts:{
+			type:Relationship,
+			ref:'Contact.script',
 			many:true
 		}
 	}
@@ -171,11 +176,51 @@ keystone.createList('RecivedText',{
 
 keystone.createList('Contact',{
 	fields:{
-		name:{
-			type:Text
+		script:{
+			type:Relationship,
+			ref:'Script.contacts',
+			isRequired:true
 		},
+		firstName:{
+			type:Text,
+			defaultValue:''
+		},
+		middleName:{
+			type:Text,
+			defaultValue:''
+		},
+		lastName:{
+			type:Text,
+			defaultValue:''
+		},
+		name:{
+			type:Virtual,
+			resolver:(item)=>{
+				if(item.middleName!==''){
+					return item.firstName+' '+item.middleName+' '+item.lastName;
+				}
+				else{
+					return item.firstName+' '+item.lastName;
+				}
+			}
+		},
+		vanid:{
+			type:Text,
+			defaultValue:''
+		},
+
 		phone:{
 			type:Text
+		},
+		language:{
+			type:Select,
+			options:[
+				{value:'en',label:'English'},
+				{value:'es',label:'Spanish'}
+			],
+			dataType:'enum',
+			defaultValue:'en'
+
 		}
 	}
 });
