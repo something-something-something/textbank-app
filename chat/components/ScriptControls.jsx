@@ -75,7 +75,9 @@ function ScriptEditor(props){
 
 function ScriptLineEditorList(props){
 
-	let lines=props.script.scriptLines.filter((el)=>{return el.parent===null}).map((el)=>{
+	let lines=props.script.scriptLines.filter((el)=>{return el.parent===null}).sort((a,b)=>{
+		return a.order-b.order;
+	}).map((el)=>{
 		return <ScriptLineEditor key={el.id} script={props.script} line={el} fetchData={props.fetchData}  />
 	});
 	
@@ -86,12 +88,28 @@ function ScriptLineEditorList(props){
 	</div>);
 }
 //split into diffrent components
+//need not imediietly mutate data maybe save button?
 function ScriptLineEditor(props){
 	let id=props.line.id;
 	let instructions=props.line.instructions;
 	let english=props.line.en;
 	let spanish=props.line.es;
-
+	let siblings=props.script.scriptLines.filter((el)=>{
+		if(el.id===props.line.id){
+			return false;
+		}
+		if(props.line.parent===null){
+			return el.parent===null;
+		}
+		else{
+			return el.parent!==null&&el.parent.id===props.line.parent.id;
+		}
+	}).sort((a,b)=>{
+		
+		return a.order-b.order;
+	})
+	console.log(instructions);
+	console.log(siblings.map((el)=>{ return el.order;}))
 	const updateLine=async (id,instructions,english,spanish)=>{
 		await queryGraphQL(`
 			mutation($lineID:ID!,$instructions:String!,$english:String!,$spanish:String!){
@@ -163,6 +181,67 @@ function ScriptLineEditor(props){
 		});
 		props.fetchData();
 	}
+
+	const swapOrder =async (a,b)=>{
+		let res=await queryGraphQL(`
+			query{
+				allScriptLines{
+					order
+				}
+			}
+		`,{})
+		
+		let nextOrder=1+res.data.allScriptLines.reduce((acc,curr)=>{
+			return curr.order>acc?curr.order:acc;
+		},0);
+		// await queryGraphQL(`
+		// 	mutation($tempOrder:Int!,$bID:ID!){
+		// 		temp:updateScriptLine(id:$bID,data:{
+		// 			order:$tempOrder
+		// 		}){
+		// 			id
+		// 			order
+		// 		}
+		// 	}
+		// `,{
+		// 	tempOrder:nextOrder,
+		// 	bID:b.id,
+		// });
+
+		await queryGraphQL(`
+			mutation($tempOrder:Int!,$aID:ID!, $aOrder:Int!,$bID:ID!, $bOrder:Int!){
+				temp:updateScriptLine(id:$bID,data:{
+					order:$tempOrder
+				}){
+					id
+					order
+				}
+
+
+				a:updateScriptLine(id:$aID,data:{
+					order:$bOrder
+				}){
+					id
+					order
+				}
+
+				b:updateScriptLine(id:$bID,data:{
+					order:$aOrder
+				}){
+					id
+					order
+				}
+			}
+		`,{	
+			tempOrder:nextOrder,
+			aID:a.id,
+			aOrder:a.order,
+			bID:b.id,
+			bOrder:b.order,
+		});
+		await props.fetchData();
+	}
+
 	return (<div style={{borderStyle:'solid',borderWidth:'0.1rem',borderColor:'black',padding:'1rem'}}>
 		{props.line.parent!==null&&(<div>
 			<button onClick={()=>{removeParent(id)}} >Don't indent</button>
@@ -171,6 +250,19 @@ function ScriptLineEditor(props){
 		<div>English:<br/><textarea value={english} onChange={(ev)=>{updateLine(id,instructions,ev.target.value,spanish)}}/></div>
 		<div>Spanish:<br/><textarea value={spanish} onChange={(ev)=>{updateLine(id,instructions,english,ev.target.value)}}/></div>
 		<button onClick={()=>{deleteLine(id)}}>Delete Line</button>
+		{siblings.length>0&&(<div>
+			Switch Position With
+			<select value="" onChange={(ev)=>{
+				if(ev.target.value!==''){
+					swapOrder(props.line,siblings.find((el)=>{return el.id===ev.target.value}));
+				}
+			}}>
+				<option value="">Select A Line to switch</option>
+				{siblings.map((el)=>{
+					return <option key={el.id} value={el.id}>{el.instructions}-{el.en}</option>
+				})}
+			</select>
+		</div>)}
 		<div style={{marginLeft:'3rem'}}>
 			Children<br/>
 			<button onClick={()=>{
@@ -179,13 +271,18 @@ function ScriptLineEditor(props){
 			<SelectScriptLineAsChild script={props.script} line={props.line} fetchData={props.fetchData}/>
 			{
 				props.line.children.map((child)=>{
-					let line=props.script.scriptLines.find((el)=>{
+					return props.script.scriptLines.find((el)=>{
 						return el.id===child.id;
 					});
-					return <ScriptLineEditor key={child.id} script={props.script} line={line} fetchData={props.fetchData}  />
+					
+				}).sort((a,b)=>{
+					return a.order-b.order;
+				}).map((child)=>{
+					return <ScriptLineEditor key={child.id} script={props.script} line={child} fetchData={props.fetchData}  />
 				})
 			}
 		</div>
+		order {props.line.order}
 	</div>);
 }
 
@@ -223,6 +320,7 @@ function SelectScriptLineAsChild(props){
 			return arr.concat([id]);
 		}	
 	}
+	//rename is actualy scripts not ancestor
 	let scriptsWithNoParents=props.script.scriptLines.filter((el)=>{
 		// if(el.parent===null){
 		// 	el.id!==props.line.id;

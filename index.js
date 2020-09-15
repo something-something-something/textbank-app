@@ -101,7 +101,13 @@ keystone.createList('ScriptLine',{
 		},
 		order:{
 			type:Integer,
-			defaultValue:0
+			isUnique:true,
+			defaultValue:async ()=>{
+				let lines=await getItems({keystone,listKey:'ScriptLine',returnFields:'order'});
+				return 1+lines.reduce((acc,curr)=>{
+						return curr.order>acc?curr.order:acc;
+				},0);
+			}
 		},
 		en:{
 			type:Text,
