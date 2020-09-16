@@ -76,9 +76,12 @@ function ScriptEditor(props){
 		<ScriptLineEditorList script={props.script} fetchData={props.fetchData} />
 		<AddScriptLineButton fetchData={props.fetchData} script={props.script}/>
 		<ContactEditor fetchData={props.fetchData} script={props.script}/>
-		<pre>
-			{JSON.stringify(props.script,null,'\t')}
-		</pre>
+		<details>
+		<summary>JSON DEBUG</summary>	
+			<pre>
+				{JSON.stringify(props.script,null,'\t')}
+			</pre>
+		</details>
 		
 	</div>);
 }
@@ -426,7 +429,113 @@ function ContactEditor(props){
 		{showAddContact&&(
 			<AddContactEditor script={props.script} fetchData={props.fetchData} hideAddContact={hideAddContact}/>
 		)}
+		<BulkAddContacts script={props.script} fetchData={props.fetchData} />
+		<div>Contacts:{props.script.contacts.length}</div>
 		<ContactTable script={props.script} fetchData={props.fetchData}/>
+
+	</div>);
+}
+
+function BulkAddContacts(props){
+	const [contactText,setContactText]=useState('');
+	const [contactUploading,setContactUploading]=useState(false);
+	let generateContactsFromText=(text)=>{
+		let lines=text.trim().split('\n');
+		let vanidPos=0;
+		let namePos=0;
+		let cellPos=0;
+		let headers=lines[0].split('\t');
+		console.log(headers)
+		vanidPos=headers.findIndex((el)=>{return el.trim().startsWith('Voter File VANID')});
+		cellPos=headers.findIndex((el)=>{return el.trim().startsWith('Cell Phone')});
+		namePos=headers.findIndex((el)=>{return el.trim().startsWith('Name')});
+
+		console.log('positions');
+
+
+		console.log(vanidPos);
+		console.log(namePos);
+		console.log(cellPos);
+		if(lines.length>1){
+			return lines.slice(1).map((el)=>{
+				let fields=el.split('\t');
+				let phone='';
+				let vanid='';
+				let fn='';
+				let mn='';
+				let ln=''
+				if(namePos!==-1&&fields.length>namePos){
+					let name=fields[namePos].split(',');
+					ln=name[0];
+					if(name.length>1){
+						let firstAndMiddle=name[1].trim().split(' ');
+						fn=firstAndMiddle[0];
+						if(firstAndMiddle.length>1){
+							mn=firstAndMiddle[1]
+						}
+					}
+				}
+				if(vanidPos!==-1&&fields.length>vanidPos){
+					vanid=fields[vanidPos].trim();
+				}
+				if(cellPos!==-1&&fields.length>cellPos){
+					phone='+1'+fields[cellPos].replace(/\D/g,'');
+				}
+				return {
+					firstName:fn,
+					middleName:mn,
+					lastName:ln,
+					vanid:vanid,
+					phone:phone
+				}
+			});
+		}
+		else{
+			return[]
+		}
+		
+		
+
+	};
+	let potentialContacts=generateContactsFromText(contactText);
+	console.log(potentialContacts)
+	let importContacts=async(scriptID)=>{
+				// type con{
+			// 	firstName:String!
+			// 	middlesName:String!
+			// 	lastName:String!
+			// 	phone:String!
+			// 	vanid:String!
+			// }
+		let splitContacts=[];
+		for(let i=0; i<potentialContacts.length;i=i+20){
+			splitContacts.push(potentialContacts.slice(i,i+20));
+		}
+		setContactUploading(true);
+		for(let i of splitContacts){
+			await queryGraphQL(`
+
+				mutation ($scriptID:ID!,$contacts:[ContactCreateInput!]!){
+					updateScript(id:$scriptID,data:{contacts:{
+						create:$contacts
+					}}){
+						id
+					}
+				}
+			`,{
+				scriptID:props.script.id,
+				contacts:i
+			});
+		}		
+		setContactUploading(false);
+		props.fetchData();
+	};
+	return(<div>
+		Bulk Import<br/>
+		<textarea value={contactText} onChange={(ev)=>{setContactText(ev.target.value)}}/>
+		{contactUploading&&(<div>Uploading... </div>)}
+	{potentialContacts.length>0&&(<div><button onClick={()=>{ importContacts()}}>Add {potentialContacts.length} contacts </button></div>)}
+		{potentialContacts.length>0&&(<details><summary>JSON CONTACTS</summary><pre>{JSON.stringify(potentialContacts,null,'\t')}</pre></details>)}
 	</div>);
 }
 
