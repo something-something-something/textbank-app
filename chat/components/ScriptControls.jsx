@@ -1,5 +1,4 @@
 import {useState,useEffect} from 'react';
-import { ConnectionPolicyTargetList } from 'twilio/lib/rest/voice/v1/connectionPolicy/connectionPolicyTarget';
 import {queryGraphQL} from '../lib/graphql';
 
 
