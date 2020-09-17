@@ -2,7 +2,7 @@ const {Keystone}=require('@keystonejs/keystone');
 const {MongooseAdapter}=require('@keystonejs/adapter-mongoose');
 const {GraphQLApp}=require('@keystonejs/app-graphql');
 const {Text,DateTimeUtc, Relationship, Integer,Virtual, Select} =require('@keystonejs/fields');
-const { createItem ,getItems,updateItem} = require('@keystonejs/server-side-graphql-client');
+const { createItem ,getItems,updateItem,getItem} = require('@keystonejs/server-side-graphql-client');
 const {NextApp} =require('@keystonejs/app-next');
 
 const twilioClient=require('twilio')(process.env.TWILSID,process.env.TWILAUTHTOKEN);
@@ -17,16 +17,16 @@ const keystone=new Keystone({
 		console.log('connected');
 		setInterval(async ()=>{
 			console.log('Texts');
-			let recivedMessages=await twilioClient.messages.list({to:process.env.TWILNUMBER});
+			let receivedMessages=await twilioClient.messages.list({to:process.env.TWILNUMBER});
 
-			let storedRecivedMesages=await getItems({keystone,listKey:'RecivedText',returnFields:'id, content, from, twilID'});
+			let storedReceivedMesages=await getItems({keystone,listKey:'ReceivedText',returnFields:'id, content, from, twilID'});
 
-			for(let rm of recivedMessages){
+			for(let rm of receivedMessages){
 				//console.log(rm)
-				if(!storedRecivedMesages.some((el)=>{return el.twilID===rm.sid})){
+				if(!storedReceivedMesages.some((el)=>{return el.twilID===rm.sid})){
 					createItem({
 						keystone,
-						listKey:'RecivedText',
+						listKey:'ReceivedText',
 						item:{
 							content:rm.body,
 							from:rm.from,
@@ -37,7 +37,7 @@ const keystone=new Keystone({
 				}
 
 			}
-			//console.log(recivedMessages);
+			//console.log(receivedMessages);
 
 
 			let sentMessages=await twilioClient.messages.list({from:process.env.TWILNUMBER});
@@ -156,7 +156,7 @@ keystone.createList('SentText',{
 		}
 	}
 });
-keystone.createList('RecivedText',{
+keystone.createList('ReceivedText',{
 	fields:{
 		content:{
 			type:Text
@@ -212,6 +212,34 @@ keystone.createList('Contact',{
 		phone:{
 			type:Text
 		},
+		//texts sent to contact
+		sentTexts:{
+			type:Virtual,
+			extendGraphQLTypes:['type SentToContactTexts {id: ID, content: String, status: String,date: String}'],
+			graphQLReturnType:'[SentToContactTexts]',
+			graphQLReturnFragment:`{
+				id,
+				content,
+				status,
+				date
+			}`,
+			resolver:async (item)=>{
+				return await getItems({keystone,listKey:'SentText',returnFields:'id, content, status, date',where:{to:item.phone}});
+			}
+		},
+		receivedTexts:{
+			type:Virtual,
+			extendGraphQLTypes:['type ReceivedFromContactTexts {id: ID, content: String ,date: String}'],
+			graphQLReturnType:'[ReceivedFromContactTexts]',
+			graphQLReturnFragment:`{
+				id,
+				content,
+				date
+			}`,
+			resolver:async (item)=>{
+				return await getItems({keystone,listKey:'ReceivedText',returnFields:'id, content, date',where:{from:item.phone}});
+			}
+		},
 		language:{
 			type:Select,
 			options:[
@@ -229,16 +257,36 @@ keystone.createList('Contact',{
 
 
 const sendText=async (par,args,context,info,extra)=>{
-	console.log('To '+args.number);
+	console.log('To '+args.contact);
 	console.log('Message '+args.content);
 	let twilError=null;
 	// let twilID;
 	let twilMessage;
+
+	let contact;
+	try{
+		contact=await getItem({keystone,listKey:'Contact',itemId:args.contact, returnFields:'phone'});
+		console.log(contact);
+		if(!/^\+1\d{10}$/.test(contact.phone)){
+			console.log('non valid phone');
+			throw 'bad phone';
+		}
+	}
+	catch(e){
+		console.log(e);
+		return {
+			content:args.content,
+			failedToSend:true
+		}
+	}
+	
+	
+
 	try{
 		let message=await twilioClient.messages.create({
 			body:args.content,
 			from:process.env.TWILNUMBER,
-			to:args.number
+			to:contact.phone
 		});
 		console.log(message);
 		twilMessage=message
@@ -260,7 +308,7 @@ const sendText=async (par,args,context,info,extra)=>{
 			}
 			`,
 			variables:{
-				phone:args.number,
+				phone:contact.phone,
 				msgTxt:args.content,
 				id:twilMessage.sid,
 				twilStatus:twilMessage.status,
@@ -284,7 +332,7 @@ keystone.extendGraphQLSchema({
 	],
 	mutations: [
 		{
-			schema: 'sentText(content:String!, number:String!):SendTextOutput',
+			schema: 'sentText(content:String!, contact:ID!):SendTextOutput',
 			resolver:sendText
 		}
 	]

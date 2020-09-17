@@ -3,86 +3,180 @@ import {queryGraphQL} from '../lib/graphql'
 import {useRouter} from 'next/router'
 
 export function Chat(){
+	const [textToSend,setTextToSend]=useState('');
 	const router=useRouter();
-	let phone=router.query.phone!==undefined?router.query.phone:'';
-	const setPhone=(thePhone)=>{
+	let contactID=router.query.contact!==undefined?router.query.contact:''
+	
+	let scriptID=router.query.script!==undefined?router.query.script:''
+
+	const setContact=(cid)=>{
 		router.push({
 			pathname:'/chat',
 			query:{
-				phone:thePhone
+				contact:cid,
+				script:scriptID
 			}
 		})
 	}
 	const [results,setResults]=useState({
-		allSentTexts:[],
-		allRecivedTexts:[]
+		Script:{
+			scriptLines:[],
+			contacts:[]
+		}
 	});
 	
 	const fetchData=async()=>{
 			let res=await queryGraphQL(`
-			query ($phone: String!){
-				allSentTexts(where:{to:$phone}){
-					content,
-					twilID,
-					to,
-					date,
-					status,
-					id
+			query ($script: ID!,$contact: ID!, $contactSelected: Boolean!){
+				Script(where:{id:$script}){
+					contacts{
+						name,
+						id
+					}
+					scriptLines{
+						id
+						instructions
+						order
+						en
+						es
+						parent{
+							id
+						}
+						children{
+							id
+						}
+					}
+				 	selectedContact: contacts(where:{id:$contact})	@include(if: $contactSelected){
+						id
+						name
+						firstName
+						sentTexts{
+							id
+							content
+							date
+							status
+						},
+						receivedTexts{
+							id
+							content
+							date
+						}
+					}
 				}
-				allRecivedTexts(where:{from:$phone}){
-					content,
-					twilID,
-					from,
-					date,
-					id
-				}
+				
 			}
-			`,{phone:phone});
-	setResults(res.data);
-	return res.data;
-}
+			`,{
+				script:scriptID,
+				contact:contactID,
+				contactSelected: (contactID!=='')
+			});
+		setResults(res.data);
+		return res.data;
+	}
 
-const sendText=async(content)=>{
-	let res=await queryGraphQL(`
-			mutation ($phone: String!,$content: String!){
-				sentText(number:$phone,content:$content){
-				  content,
-				  failedToSend
+	const sendText=async(content)=>{
+		let res=await queryGraphQL(`
+				mutation ($contact: ID!,$content: String!){
+					sentText(contact:$contact,content:$content){
+					content,
+					failedToSend
+					}
 				}
-			  }
-			`,{phone:phone,content:content});
-	return res.data;
-}
+				`,{contact:contactID,content:content});
+		return res.data;
+	}
 
-useEffect(()=>{
-	fetchData()
-	
-},[phone]);
-
-const getNumTexts=()=>{
-	console.log(results)
-	return results.allRecivedTexts.length+results.allSentTexts.length;
-}
-
-useEffect(()=>{
-	let timer=setInterval(async ()=>{
-		console.log('updating');
-		
+	useEffect(()=>{
 		fetchData()
 		
-		
-		
-	},(Math.floor(Math.random()*10)+5)*1000);
+	},[scriptID,contactID]);
+
+	const getNumTexts=()=>{
+		console.log(results)
+		return results.allReceivedTexts.length+results.allSentTexts.length;
+	}
+
+	useEffect(()=>{
+		let timer=setInterval(async ()=>{
+			console.log('updating');
+			
+			fetchData()
+			
+			
+			
+		},(Math.floor(Math.random()*10)+5)*1000);
 
 
-	return ()=>{clearInterval(timer)};
-},[phone])
+		return ()=>{clearInterval(timer)};
+	},[scriptID,contactID])
+
+	let textReplacmentData={
+		contact:{}
+	}
+	if(results.Script.selectedContact!==undefined){
+		textReplacmentData.contact.firstName=results.Script.selectedContact[0].firstName;
+	}
+
 	return <div>
-		<input type="text" value={phone} onChange={(ev)=>{setPhone(ev.target.value)}}/> {phone}
-		<Conversation sent={results.allSentTexts} received={results.allRecivedTexts} sendText={sendText} fetchData={fetchData}/>
+		<ContactsBar contacts={results.Script.contacts} setContact={setContact}/>
+		<Script lines={results.Script.scriptLines} setTextToSend={setTextToSend} textReplacmentData={textReplacmentData}/>
+		{results.Script.selectedContact!==undefined&&(
+			<>
+			
+			<Conversation sent={results.Script.selectedContact[0].sentTexts} received={results.Script.selectedContact[0].receivedTexts} sendText={sendText} fetchData={fetchData}/>
+
+			<TextBox textToSend={textToSend} setTextToSend={setTextToSend} sendText={sendText} fetchData={fetchData}/>
+			</>
+		)}
 		
 	</div>
 }
+function ContactsBar(props){
+	
+	return (<div>
+		{props.contacts.map((el)=>{
+			return (<button key={el.id} onClick={()=>{props.setContact(el.id)}}>{el.name}</button>);
+		})}
+	</div>);
+}
+function Script(props){
+	return (<> 
+		{props.lines.filter((el)=>{
+			return el.parent===null;
+		}).sort((a,b)=>{
+			return a.order-b.order;
+		}).map((el)=>{
+			return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend} textReplacmentData={props.textReplacmentData}/>
+		})}
+	</>);
+}
+function ScriptLine(props){
+
+	let fillReplacements=(text)=>{
+		let replacedText=text;
+		if(props.textReplacmentData.contact.firstName!==undefined){
+			replacedText=text.replaceAll('{ContactFirstName}',props.textReplacmentData.contact.firstName);
+		}
+		return replacedText
+	}
+	return (<div>
+		<b>{props.line.instructions}</b>
+		<div>{fillReplacements(props.line.en)}</div>
+		<button onClick={()=>{
+			props.setTextToSend(fillReplacements(props.line.en));
+		}}>Text</button>
+		<div style={{marginLeft:'2rem'}}>
+			{props.lines.filter((el)=>{
+				return el.parent!==null&&el.parent.id===props.line.id;
+			}).sort((a,b)=>{
+				return a.order-b.order;
+			}).map((el)=>{
+				return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend} textReplacmentData={props.textReplacmentData}/>
+			})}
+		</div>
+	</div>);
+}
+
 
 function Conversation(props){
 	let messages=props.sent.map((el)=>{
@@ -97,9 +191,9 @@ function Conversation(props){
 		return <Message key={el.id} message={el}/>
 	})
 
-return <div>
+	return <div>
 		{theMessages}
-		<TextBox sendText={props.sendText} fetchData={props.fetchData}/>
+		
 	</div>
 }
 
@@ -126,22 +220,22 @@ function Message(props){
 	</div>
 }
 function TextBox(props){
-	const [textToSend,setTextToSend]=useState('');
+	
 	return <div  style={{display:'flex' , position:'sticky',bottom:'0rem'}}>
 			<textarea style={{maxWidth:'50vh',width:'80rem',height:'5rem', marginLeft:'auto'}}
-			value={textToSend} 
+			value={props.textToSend} 
 			onChange={(ev)=>{
-				setTextToSend(ev.target.value);
+				props.setTextToSend(ev.target.value);
 			}}/>
 			<button style={{height:'5rem', }} onClick={async ()=>{
 				try{
-					let message=await props.sendText(textToSend);
+					let message=await props.sendText(props.textToSend);
 					console.log(message);
 					if(message.sentText.failedToSend){
 						alert('Failed To Send! Have they Refused to recive Mesages?');
 					}
 					else{
-						setTextToSend('');
+						props.setTextToSend('');
 						await props.fetchData();
 						window.scrollTo(0,document.body.scrollHeight);
 					}
