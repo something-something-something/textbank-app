@@ -10,6 +10,7 @@ export function Chat(){
 	let scriptID=router.query.script!==undefined?router.query.script:''
 
 	const setContact=(cid)=>{
+		setTextToSend('')
 		router.push({
 			pathname:'/chat',
 			query:{
@@ -29,6 +30,7 @@ export function Chat(){
 			let res=await queryGraphQL(`
 			query ($script: ID!,$contact: ID!, $contactSelected: Boolean!){
 				Script(where:{id:$script}){
+					name
 					contacts{
 						name,
 						id
@@ -117,7 +119,27 @@ export function Chat(){
 		textReplacmentData.contact.firstName=results.Script.selectedContact[0].firstName;
 	}
 
-	return <div>
+	return <div style={{
+			margin:'0px',
+			display:'grid',
+			gridTemplateAreas:`
+				"cbar header"
+				"cbar script"
+				"cbar conv"
+				"cbar textbox"
+			`,
+			gridTemplateColumns:'10rem 1fr',
+			gridTemplateRows:'5vh 35vh 45vh 10vh',
+			rowGap:'0px',
+			overflow:'hidden'
+			
+	}}>
+		<div style={{gridArea:'header',fontSize:'4vh',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+			{results.Script.name}
+			{results.Script.selectedContact!==undefined&&(
+				<> - {results.Script.selectedContact[0].name}</>
+			)}
+		</div>
 		<ContactsBar contacts={results.Script.contacts} setContact={setContact}/>
 		<Script lines={results.Script.scriptLines} setTextToSend={setTextToSend} textReplacmentData={textReplacmentData}/>
 		{results.Script.selectedContact!==undefined&&(
@@ -133,14 +155,21 @@ export function Chat(){
 }
 function ContactsBar(props){
 	
-	return (<div>
+	return (<div style={{gridArea:'cbar',overflow:'auto'}}>
 		{props.contacts.map((el)=>{
-			return (<button key={el.id} onClick={()=>{props.setContact(el.id)}}>{el.name}</button>);
+			return (<button key={el.id} onClick={()=>{props.setContact(el.id)}}
+			style={{
+				display:'block',
+				width:'100%'
+			}}
+			>
+				{el.name}
+			</button>);
 		})}
 	</div>);
 }
 function Script(props){
-	return (<> 
+	return (<div style={{gridArea:'script',overflow:'auto'}}> 
 		{props.lines.filter((el)=>{
 			return el.parent===null;
 		}).sort((a,b)=>{
@@ -148,14 +177,15 @@ function Script(props){
 		}).map((el)=>{
 			return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend} textReplacmentData={props.textReplacmentData}/>
 		})}
-	</>);
+	</div>);
 }
 function ScriptLine(props){
 
 	let fillReplacements=(text)=>{
 		let replacedText=text;
 		if(props.textReplacmentData.contact.firstName!==undefined){
-			replacedText=text.replaceAll('{ContactFirstName}',props.textReplacmentData.contact.firstName);
+			replacedText=replacedText.replaceAll('{ContactFirstName}',props.textReplacmentData.contact.firstName);
+			replacedText=replacedText.replaceAll('{VoterName}',props.textReplacmentData.contact.firstName);
 		}
 		return replacedText
 	}
@@ -191,7 +221,7 @@ function Conversation(props){
 		return <Message key={el.id} message={el}/>
 	})
 
-	return <div>
+	return <div style={{gridArea:'conv',overflow:'auto'}}>
 		{theMessages}
 		
 	</div>
@@ -221,13 +251,13 @@ function Message(props){
 }
 function TextBox(props){
 	
-	return <div  style={{display:'flex' , position:'sticky',bottom:'0rem'}}>
-			<textarea style={{maxWidth:'50vh',width:'80rem',height:'5rem', marginLeft:'auto'}}
+	return <div  style={{gridArea:'textbox',display:'flex'}}>
+			<textarea style={{maxWidth:'50vh',width:'80rem', marginLeft:'auto'}}
 			value={props.textToSend} 
 			onChange={(ev)=>{
 				props.setTextToSend(ev.target.value);
 			}}/>
-			<button style={{height:'5rem', }} onClick={async ()=>{
+			<button style={{}} onClick={async ()=>{
 				try{
 					let message=await props.sendText(props.textToSend);
 					console.log(message);

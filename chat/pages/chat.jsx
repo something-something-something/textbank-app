@@ -5,10 +5,7 @@ const DynamicChat=dynamic(async ()=>{
 },{ssr:false});
 
 function ChatPage(){
-	return <div>
-		Chat App
-		<DynamicChat/>
-	</div>
+	return 	<DynamicChat/>
 }
 
 export default ChatPage;
