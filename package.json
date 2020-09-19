@@ -11,12 +11,12 @@
   "author": "",
   "license": "UNLICENSED",
   "dependencies": {
-    "@keystonejs/adapter-mongoose": "^9.0.5",
+    "@keystonejs/adapter-mongoose": "^9.0.6",
     "@keystonejs/app-graphql": "^6.1.2",
     "@keystonejs/app-next": "^5.2.3",
-    "@keystonejs/fields": "^17.1.1",
-    "@keystonejs/keystone": "^14.0.2",
-    "@keystonejs/server-side-graphql-client": "^1.1.1",
-    "twilio": "^3.49.1"
+    "@keystonejs/fields": "^17.1.2",
+    "@keystonejs/keystone": "^15.0.0",
+    "@keystonejs/server-side-graphql-client": "^1.1.2",
+    "twilio": "^3.49.2"
   }
 }
