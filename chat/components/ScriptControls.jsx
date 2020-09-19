@@ -11,6 +11,11 @@ export function ScriptControls(props){
 				allScripts{
 					id,
 					name,
+					questions{
+						id
+						headerName
+						questionText
+					}
 					scriptLines{
 						id,
 						script{
@@ -72,6 +77,7 @@ function ScriptList(props){
 function ScriptEditor(props){
 	return (<div>
 		{props.script.name}
+		<ScriptQuestions script={props.script} fetchData={props.fetchData} />
 		<ScriptLineEditorList script={props.script} fetchData={props.fetchData} />
 		<AddScriptLineButton fetchData={props.fetchData} script={props.script}/>
 		<ContactEditor fetchData={props.fetchData} script={props.script}/>
@@ -83,6 +89,89 @@ function ScriptEditor(props){
 		</details>
 		
 	</div>);
+}
+
+function ScriptQuestions(props){
+	let qEditors=props.script.questions.map((el)=>{
+		return <ScriptQuestionEditor key={el.id} question={el} fetchData={props.fetchData}/>
+	})
+	
+	return (<div>
+		Questions:
+		{qEditors}
+
+		<AddScriptQuestion script={props.script} fetchData={props.fetchData} />
+	</div>);
+}
+
+function ScriptQuestionEditor(props){
+	const [questionText,setQuestionText]=useState(props.question.questionText);
+	const [header,setHeader]=useState(props.question.headerName);
+
+
+	let needsSave=false;
+	if(questionText!==props.question.questionText){
+		needsSave=true;
+	}
+	if(header!==props.question.headerName){
+		needsSave=true;
+	}
+
+	const save=async ()=>{
+		await queryGraphQL(`
+			mutation($qID:ID!,$headerName:String!,$questionText:String!){
+				updateScriptQuestion(id:$qID,data:{
+					headerName:$headerName,
+					questionText:$questionText
+				}){
+					id
+				}
+			}
+		
+		`,{
+			qID:props.question.id,
+			headerName:header,
+			questionText:questionText
+		});
+		props.fetchData();
+	}
+	return (<div>
+			{props.question.headerName}
+			{needsSave&&(<button onClick={()=>{
+				save();
+			}}>Save</button>)}
+			<br/>
+			<textarea value={questionText} onChange={(ev)=>{
+				setQuestionText(ev.target.value);
+			}}/><br/>
+			Header:<input type="text" value={header} onChange={(ev)=>{
+				setHeader(ev.target.value);
+			}}/>
+			
+	</div>);
+}
+
+function AddScriptQuestion(props){
+	const [header,setHeader]=useState('');
+	return <button onClick={async ()=>{
+		await queryGraphQL(`
+			mutation($scriptID:ID!,$headerName:String!){
+				updateScript(id:$scriptID,data:{
+					questions:{
+						create:{
+							headerName:$headerName
+						}
+					}
+				}){
+					id
+				}
+			}
+		`,{
+			scriptID:props.script.id,
+			headerName:header
+		});
+		props.fetchData();
+	}}>Add Question</button>
 }
 
 function ScriptLineEditorList(props){
@@ -120,8 +209,8 @@ function ScriptLineEditor(props){
 		
 		return a.order-b.order;
 	})
-	console.log(instructions);
-	console.log(siblings.map((el)=>{ return el.order;}))
+	//console.log(instructions);
+	//console.log(siblings.map((el)=>{ return el.order;}))
 	const updateLine=async (id,instructions,english,spanish)=>{
 		await queryGraphQL(`
 			mutation($lineID:ID!,$instructions:String!,$english:String!,$spanish:String!){
@@ -325,7 +414,7 @@ function SelectScriptLineAsChild(props){
 		let obj=props.script.scriptLines.find((el)=>{return el.id===id});
 		if(obj.parent!==null){
 			arr=arr.concat([id,...ancestors(obj.parent.id,arr)]);
-			console.log(arr);
+			//console.log(arr);
 			return arr;
 		}
 		else{
@@ -444,17 +533,17 @@ function BulkAddContacts(props){
 		let namePos=0;
 		let cellPos=0;
 		let headers=lines[0].split('\t');
-		console.log(headers)
+		//console.log(headers)
 		vanidPos=headers.findIndex((el)=>{return el.trim().startsWith('Voter File VANID')});
 		cellPos=headers.findIndex((el)=>{return el.trim().startsWith('Cell Phone')});
 		namePos=headers.findIndex((el)=>{return el.trim().startsWith('Name')});
 
-		console.log('positions');
+		//console.log('positions');
 
 
-		console.log(vanidPos);
-		console.log(namePos);
-		console.log(cellPos);
+		//console.log(vanidPos);
+		//console.log(namePos);
+		//console.log(cellPos);
 		if(lines.length>1){
 			return lines.slice(1).map((el)=>{
 				let fields=el.split('\t');
@@ -497,7 +586,7 @@ function BulkAddContacts(props){
 
 	};
 	let potentialContacts=generateContactsFromText(contactText);
-	console.log(potentialContacts)
+	//console.log(potentialContacts)
 	let importContacts=async(scriptID)=>{
 				// type con{
 			// 	firstName:String!

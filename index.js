@@ -91,9 +91,55 @@ keystone.createList('Script',{
 			type:Relationship,
 			ref:'Contact.script',
 			many:true
+		},
+		questions:{
+			type:Relationship,
+			ref:'ScriptQuestion.script',
+			many:true
 		}
 	}
 });
+
+keystone.createList('ScriptQuestion',{
+	fields:{
+		questionText:{
+			type:Text,
+			defaultValue:''
+		},
+		headerName:{
+			type:Text,
+			isRequired:true
+		},
+		script:{
+			type:Relationship,
+			ref:'Script.questions',
+			isRequired:true
+		},
+		answers:{
+			type:Relationship,
+			ref:'ScriptAnswer.question',
+			many:true
+		}
+	}
+});
+
+keystone.createList('ScriptAnswer',{
+	fields:{
+		contact:{
+			type:Relationship,
+			ref:'Contact.answers',
+		},
+		question:{
+			type:Relationship,
+			ref:'ScriptQuestion.answers',
+			isRequired:true
+		},
+		answerText:{
+			type:Text
+		},
+	}
+});
+
 keystone.createList('ScriptLine',{
 	fields:{
 		script:{
@@ -249,6 +295,11 @@ keystone.createList('Contact',{
 			dataType:'enum',
 			defaultValue:'en'
 
+		},
+		answers:{
+			type:Relationship,
+			ref:'ScriptAnswer.contact',
+			many:true
 		}
 	}
 });

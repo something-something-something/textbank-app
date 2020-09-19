@@ -48,6 +48,11 @@ export function Chat(){
 							id
 						}
 					}
+					questions{
+						id
+						questionText
+
+					}
 				 	selectedContact: contacts(where:{id:$contact})	@include(if: $contactSelected){
 						id
 						name
@@ -62,6 +67,13 @@ export function Chat(){
 							id
 							content
 							date
+						}
+						answers{
+							id
+							answerText
+							question{
+								id
+							}
 						}
 					}
 				}
@@ -123,12 +135,12 @@ export function Chat(){
 			margin:'0px',
 			display:'grid',
 			gridTemplateAreas:`
-				"cbar header"
-				"cbar script"
-				"cbar conv"
-				"cbar textbox"
+				"cbar header header"
+				"cbar script questions"
+				"cbar conv conv"
+				"cbar textbox textbox"
 			`,
-			gridTemplateColumns:'10rem 1fr',
+			gridTemplateColumns:'10rem 1fr 1fr',
 			gridTemplateRows:'5vh 35vh 45vh 10vh',
 			rowGap:'0px',
 			overflow:'hidden'
@@ -144,7 +156,7 @@ export function Chat(){
 		<Script lines={results.Script.scriptLines} setTextToSend={setTextToSend} textReplacmentData={textReplacmentData}/>
 		{results.Script.selectedContact!==undefined&&(
 			<>
-			
+			<ScriptQuestions questions={results.Script.questions} contact={results.Script.selectedContact[0]} fetchData={fetchData}/>
 			<Conversation sent={results.Script.selectedContact[0].sentTexts} received={results.Script.selectedContact[0].receivedTexts} sendText={sendText} fetchData={fetchData}/>
 
 			<TextBox textToSend={textToSend} setTextToSend={setTextToSend} sendText={sendText} fetchData={fetchData}/>
@@ -206,7 +218,85 @@ function ScriptLine(props){
 		</div>
 	</div>);
 }
+function ScriptQuestions(props){
+	return (<div style={{gridArea:'questions',overflow:'auto'}}> 
+		Questions<br/>
+		{props.questions.map((el)=>{
+			return <div key={el.id}>
+				{el.questionText}
+				<ScriptQuestionNewAnswer question={el} contact={props.contact} fetchData={props.fetchData}/>
+				{props.contact.answers.filter((ans)=>{
+					return ans.question.id===el.id;
+				}).map((ans)=>{
+					return <ScriptQuestionAnswer key={ans.id} answer={ans} fetchData={props.fetchData}/>
+				})
+				
+				
+				}
+			</div>
+		})}
+	</div>);
+}
+function ScriptQuestionNewAnswer(props){
+	let makeAnswer=async ()=>{
+		await queryGraphQL(`
+			mutation ($contact: ID!,$question:ID!){
+				createScriptAnswer(data:{
+					contact:{
+						connect:{
+							id:$contact
+						}
+					},
+					question:{
+						connect:{
+							id:$question
+						}
+					}
+				}){
+					id
+				}
+			}
+		`,
+		{
+			contact:props.contact.id,
+			question:props.question.id
+		});
+		props.fetchData();
+	}
+	return (<button onClick={()=>{makeAnswer()}}>New Answer</button>);
+}
+function ScriptQuestionAnswer(props){
+	const [answerText,setAnswerText]=useState(props.answer.answerText)
+	let needsSave=false;
+	if(answerText!==props.answer.answerText){
+		needsSave=true;
+	}
 
+	const save=async ()=>{
+		await queryGraphQL(`
+			mutation ($id: ID!,$text:String!){
+				updateScriptAnswer(id:$id,data:{
+					answerText:$text
+				}){
+					id
+				}
+			}
+		`,
+		{
+			id:props.answer.id,
+			text:answerText
+		});
+		props.fetchData();
+	}
+	return (<div> 
+		{needsSave&&(
+			<button onClick={()=>{
+				save();
+			}}>Save</button>
+		)}
+		<textarea value={answerText} onChange={(ev)=>{setAnswerText(ev.target.value)}}/>
+	</div>);
+}
 
 function Conversation(props){
 	let messages=props.sent.map((el)=>{
