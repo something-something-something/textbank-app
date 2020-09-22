@@ -1,20 +1,39 @@
 const {Keystone}=require('@keystonejs/keystone');
 const {MongooseAdapter}=require('@keystonejs/adapter-mongoose');
 const {GraphQLApp}=require('@keystonejs/app-graphql');
-const {Text,DateTimeUtc, Relationship, Integer,Virtual, Select} =require('@keystonejs/fields');
+const {Text,DateTimeUtc, Relationship, Integer,Virtual, Select, Password} =require('@keystonejs/fields');
 const { createItem ,getItems,updateItem,getItem} = require('@keystonejs/server-side-graphql-client');
 const {NextApp} =require('@keystonejs/app-next');
-
+const {PasswordAuthStrategy}=require('@keystonejs/auth-password')
 const twilioClient=require('twilio')(process.env.TWILSID,process.env.TWILAUTHTOKEN);
+const {AuthUserIsAdmin}=require('./access');
 
-
-
+function serverContext(keystone){ 
+	return keystone.createContext({skipAccessControl:true});
+};
 
 
 const keystone=new Keystone({
 	adapter: new MongooseAdapter({mongoUri:process.env.URLMONGO}),
 	onConnect:()=>{
 		console.log('connected');
+
+		const addUserIfNone=async()=>{
+			let users=await getItems({keystone,listKey:'User',returnFields:'id'});
+			if(users.length===0){
+				console.log('adding user');
+				await createItem({
+					keystone,
+					listKey:'User',
+					item:{
+						email:'admin',
+						password:'password',
+						role:'admin'
+					}
+				})
+			}
+		};
+		addUserIfNone();
 		setInterval(async ()=>{
 			console.log('Texts');
 			let receivedMessages=await twilioClient.messages.list({to:process.env.TWILNUMBER});
@@ -32,7 +51,7 @@ const keystone=new Keystone({
 							from:rm.from,
 							twilID:rm.sid,
 							date:(new Date(rm.dateSent)).toISOString()
-						}
+						},
 					});
 				}
 
@@ -54,7 +73,7 @@ const keystone=new Keystone({
 							status:sm.status,
 							twilID:sm.sid,
 							date:(new Date(sm.dateCreated)).toISOString()
-						}
+						},
 					});
 				}
 				else{
@@ -63,7 +82,7 @@ const keystone=new Keystone({
 						updateItem({
 							keystone,
 							listKey:'SentText',
-							item:{id:storedMesage.id,data:{status:sm.status,content:sm.body}}
+							item:{id:storedMesage.id,data:{status:sm.status,content:sm.body}},
 						})
 					}
 				}
@@ -77,6 +96,12 @@ const keystone=new Keystone({
 
 
 keystone.createList('Script',{
+	access:{
+		create:AuthUserIsAdmin,
+		read:AuthUserIsAdmin,
+		update:AuthUserIsAdmin,
+		delete:AuthUserIsAdmin
+	},
 	fields:{
 		name:{
 			type:Text,
@@ -101,6 +126,12 @@ keystone.createList('Script',{
 });
 
 keystone.createList('ScriptQuestion',{
+	access:{
+		create:AuthUserIsAdmin,
+		read:AuthUserIsAdmin,
+		update:AuthUserIsAdmin,
+		delete:AuthUserIsAdmin
+	},
 	fields:{
 		questionText:{
 			type:Text,
@@ -124,6 +155,12 @@ keystone.createList('ScriptQuestion',{
 });
 
 keystone.createList('ScriptAnswer',{
+	access:{
+		create:AuthUserIsAdmin,
+		read:AuthUserIsAdmin,
+		update:AuthUserIsAdmin,
+		delete:AuthUserIsAdmin
+	},
 	fields:{
 		contact:{
 			type:Relationship,
@@ -141,6 +178,12 @@ keystone.createList('ScriptAnswer',{
 });
 
 keystone.createList('ScriptLine',{
+	access:{
+		create:AuthUserIsAdmin,
+		read:AuthUserIsAdmin,
+		update:AuthUserIsAdmin,
+		delete:AuthUserIsAdmin
+	},
 	fields:{
 		script:{
 			type:Relationship,
@@ -184,6 +227,12 @@ keystone.createList('ScriptLine',{
 });
 
 keystone.createList('SentText',{
+	access:{
+		create:()=>{return false},
+		read:()=>{return false},
+		update:()=>{return false},
+		delete:()=>{return false}
+	},
 	fields:{
 		content:{
 			type:Text
@@ -203,6 +252,12 @@ keystone.createList('SentText',{
 	}
 });
 keystone.createList('ReceivedText',{
+	access:{
+		create:()=>{return false},
+		read:()=>{return false},
+		update:()=>{return false},
+		delete:()=>{return false}
+	},
 	fields:{
 		content:{
 			type:Text
@@ -221,6 +276,12 @@ keystone.createList('ReceivedText',{
 
 
 keystone.createList('Contact',{
+	access:{
+		create:AuthUserIsAdmin,
+		read:AuthUserIsAdmin,
+		update:AuthUserIsAdmin,
+		delete:AuthUserIsAdmin
+	},
 	fields:{
 		script:{
 			type:Relationship,
@@ -304,7 +365,44 @@ keystone.createList('Contact',{
 	}
 });
 
+keystone.createList('User',{
+	access:{
+		create:AuthUserIsAdmin,
+		read:AuthUserIsAdmin,
+		update:AuthUserIsAdmin,
+		delete:AuthUserIsAdmin
+	},
+	fields:{
+		email:{
+			type:Text,
+			isRequired:true
+		},
+		password:{
+			type:Password
+		},
+		role:{
+			type:Select,
+			options:[
+				{value:'none',label:'None'},
+				{value:'volunteer',label:'Volunteer'},
+				{value:'admin',label:'Administrator'}
+			],
+			dataType:'enum',
+			defaultValue:'none'
+		}
+	}
 
+});
+
+const authStrategy=keystone.createAuthStrategy({
+	type:PasswordAuthStrategy,
+	list:'User',
+	config:{
+		identityField:'email',
+		secretField:'password',
+		protectIdentities:true
+	}
+});
 
 
 const sendText=async (par,args,context,info,extra)=>{
@@ -364,7 +462,8 @@ const sendText=async (par,args,context,info,extra)=>{
 				id:twilMessage.sid,
 				twilStatus:twilMessage.status,
 				twilDate:(new Date(twilMessage.dateCreated)).toISOString()
-			}
+			},
+			context:serverContext(keystone)
 		})
 	}
 	return {
@@ -384,7 +483,8 @@ keystone.extendGraphQLSchema({
 	mutations: [
 		{
 			schema: 'sentText(content:String!, contact:ID!):SendTextOutput',
-			resolver:sendText
+			resolver:sendText,
+			access:AuthUserIsAdmin
 		}
 	]
 });
