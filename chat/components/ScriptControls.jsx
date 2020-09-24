@@ -4,7 +4,7 @@ import {queryGraphQL} from '../lib/graphql';
 
 export function ScriptControls(props){
 	const [scripts,setScripts]=useState([]);
-
+	const [allUsers,setAllUsers]=useState([]);
 	const fetchData=async ()=>{
 		let data=await queryGraphQL(`
 			query{
@@ -40,12 +40,25 @@ export function ScriptControls(props){
 						lastName
 						vanid
 						phone
+						users{
+							id
+						}
+					},
+					users{
+						id,
+						email,
+
 					}
+				}
+				allUsers{
+					id
+					email
 				}
 			}
 		`,{});
 		console.log(data);
 		setScripts(data.data.allScripts);
+		setAllUsers(data.data.allUsers);
 	}
 
 
@@ -57,7 +70,7 @@ export function ScriptControls(props){
 
 	return (<div>
 			<CreateScriptBox fetchData={fetchData}/>
-			<ScriptList scripts={scripts} fetchData={fetchData}/>
+			<ScriptList scripts={scripts} fetchData={fetchData} allUsers={allUsers}/>
 		</div>)
 }
 
@@ -67,13 +80,77 @@ function ScriptList(props){
 			<summary>{scr.name}</summary>
 			<DeleteScriptButton script={scr} fetchData={props.fetchData}/>
 			<ScriptEditor script={scr} fetchData={props.fetchData}/>
-			
+			<ScriptUsers script={scr} fetchData={props.fetchData} allUsers={props.allUsers}/>
 
 		</details>);
 	})
 
 	return (<div>{scriptEntries}</div>);
 }
+
+function ScriptUsers(props){
+
+	const addUser=async (userID)=>{
+		await queryGraphQL(`
+			mutation($userID:ID!,$scriptID:ID!){
+				updateScript(id:$scriptID,data:{
+					users:{
+						connect:{
+							id:$userID
+						}
+					}
+				}){
+					id
+				}
+			}
+		`,{
+			userID:userID,
+			scriptID:props.script.id
+		});
+		props.fetchData();
+	}
+
+	const removeUser=async (userID)=>{
+		await queryGraphQL(`
+			mutation($userID:ID!,$scriptID:ID!){
+				updateScript(id:$scriptID,data:{
+					users:{
+						disconnect:{
+							id:$userID
+						}
+					}
+				}){
+					id
+				}
+			}
+		`,{
+			userID:userID,
+			scriptID:props.script.id
+		});
+		props.fetchData();
+	}
+
+	return (<div>
+		Users:<ul>
+		{props.script.users.map((u)=>{
+			return <li key={u.id}>{u.email} <button onClick={()=>{removeUser(u.id)}}>Remove</button></li>
+		})}
+		</ul>
+		<select value="" onChange={(ev)=>{addUser(ev.target.value)}}>
+			<option value="">Choose A user to Add</option>
+			{props.allUsers.filter((au)=>{
+				return !props.script.users.some((el)=>{
+					return el.id===au.id;
+				})
+			}).map((au)=>{
+				return <option key={au.id} value={au.id}>{au.email}</option>
+			})}
+		</select>
+	</div>);
+}
+
+
+
 function ScriptEditor(props){
 	return (<div>
 		{props.script.name}
@@ -673,39 +750,79 @@ function AddContactEditor(props){
 }
 function ContactTable(props){
 	const [editRows,setEditRows]=useState([]);
-
+	
 	const toggleEditRows=(rowid)=>{
 		if(editRows.includes(rowid)){
 			setEditRows(editRows.filter((el)=>{return el!==rowid}));
 		}
 		else{
-			setEditRows(editRows.concat([rowid]))
+			setEditRows(editRows.concat([rowid]));
+		}
+	}
+	const [selectedRows,setSelectRows]=useState([]);
+	const toggleSelectedRows=(rowid)=>{
+		if(selectedRows.includes(rowid)){
+			setSelectRows(selectedRows.filter((el)=>{return el!==rowid}));
+		}
+		else{
+			setSelectRows(selectedRows.concat([rowid]));
 		}
 	}
 
+	const addContactsToUser=async (userid)=>{
+		await queryGraphQL(`
+			mutation($uid:ID!,$contacts:[ContactWhereUniqueInput!]!){
+				updateUser(id:$uid,data:{
+					contacts:{
+						connect:$contacts
+					}
+				}){
+					id
+				}
+			}
+		`,{
+			uid:userid,
+			contacts:selectedRows.map((el)=>{
+				return {id:el};
+			})
+		});
+		props.fetchData();
+	}
+
+
 	let rows=props.script.contacts.map((el)=>{
 		if(editRows.includes(el.id)){
-			return <ContactTableEditRow key={el.id} contact={el} fetchData={props.fetchData} toggleEditRows={toggleEditRows}/> 
+			return <ContactTableEditRow key={el.id} contact={el} fetchData={props.fetchData} toggleEditRows={toggleEditRows} selectedRows={selectedRows} toggleSelectedRows={toggleSelectedRows}/> 
 		}
 		else{
-			return <ContactTableViewRow key={el.id} contact={el} fetchData={props.fetchData} toggleEditRows={toggleEditRows}/>;
+			return <ContactTableViewRow key={el.id} contact={el} fetchData={props.fetchData} toggleEditRows={toggleEditRows} selectedRows={selectedRows} toggleSelectedRows={toggleSelectedRows}/>;
 		}
 		
 	});
 	let tableheadingStyle={position:'sticky',top:'0px',backgroundColor:'rgb(200,200,200)'};
-	return(<table>
-		<thead>
-			<tr>
-				<th style={tableheadingStyle}>Name</th>
-				<th style={tableheadingStyle}>VanID</th>
-				<th style={tableheadingStyle}>Phone</th>
-				<th style={tableheadingStyle}>Controls</th>
-			</tr>
-		</thead>
-		<tbody>
-			{rows}
-		</tbody>
-	</table>)
+	return(<div>Selected:{selectedRows.length}
+
+		<select value="" onChange={(ev)=>{addContactsToUser(ev.target.value)}}>
+			<option>Select Volunteer to Assign</option>
+			{props.script.users.map((el)=>{
+				return <option key={el.id} value={el.id}>{el.email}</option>
+			})}
+		</select>
+		<table>
+			<thead>
+				<tr>
+					<th style={tableheadingStyle}>Select</th>
+					<th style={tableheadingStyle}>Name</th>
+					<th style={tableheadingStyle}>VanID</th>
+					<th style={tableheadingStyle}>Phone</th>
+					<th style={tableheadingStyle}>Controls</th>
+				</tr>
+			</thead>
+			<tbody>
+				{rows}
+			</tbody>
+		</table>
+	</div>)
 }
 
 function ContactTableViewRow(props){
@@ -721,9 +838,14 @@ function ContactTableViewRow(props){
 		);
 		props.fetchData();
 	}
-
+	
 	return (
 		<tr>
+			<td>
+				<input type="checkbox" checked={
+					props.selectedRows.includes(props.contact.id)
+				} onChange={()=>{props.toggleSelectedRows(props.contact.id)}}/>
+			</td>
 			<td>{props.contact.name} </td>
 			<td>{props.contact.vanid} </td>
 			<td>{props.contact.phone} </td>
@@ -774,6 +896,11 @@ function ContactTableEditRow(props){
 
 	return(
 		<tr>
+			<td>
+				<input type="checkbox" checked={
+					props.selectedRows.includes(props.contact.id)
+				} onChange={()=>{props.toggleSelectedRows(props.contact.id)}}/>
+			</td>
 			<td>
 				<input value={firstName} onChange={(ev)=>{setFirstName(ev.target.value)}}/> 
 				<input value={middleName} onChange={(ev)=>{setMiddleName(ev.target.value)}}/> 

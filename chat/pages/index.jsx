@@ -16,12 +16,19 @@ function ScriptList(){
 
 		let res=await queryGraphQL(`
 			query{
+				authenticatedUser{
+					id
+					email
+				}
 				allScripts{
 					id
 					name
 				}
 			}
 		`,{});
+		if(res.data.authenticatedUser===null){
+			window.location.pathname='/login';
+		}
 		setScripts(res.data.allScripts)
 	}
 

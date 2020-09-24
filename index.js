@@ -6,7 +6,7 @@ const { createItem ,getItems,updateItem,getItem} = require('@keystonejs/server-s
 const {NextApp} =require('@keystonejs/app-next');
 const {PasswordAuthStrategy}=require('@keystonejs/auth-password')
 const twilioClient=require('twilio')(process.env.TWILSID,process.env.TWILAUTHTOKEN);
-const {AuthUserIsAdmin}=require('./access');
+const {AuthUserIsAdmin,AuthUserIsVolunteer,AuthUserIsAdminOrVolunteer,AuthUserIsScriptUser}=require('./access');
 
 function serverContext(keystone){ 
 	return keystone.createContext({skipAccessControl:true});
@@ -15,6 +15,9 @@ function serverContext(keystone){
 
 const keystone=new Keystone({
 	adapter: new MongooseAdapter({mongoUri:process.env.URLMONGO}),
+	cookie:{
+		sameSite:'strict'
+	},
 	onConnect:()=>{
 		console.log('connected');
 
@@ -98,29 +101,61 @@ const keystone=new Keystone({
 keystone.createList('Script',{
 	access:{
 		create:AuthUserIsAdmin,
-		read:AuthUserIsAdmin,
+		read:({authentication})=>{
+			if(AuthUserIsAdmin({authentication})){
+				return true;
+			}
+			else if(AuthUserIsVolunteer({authentication})){
+				return {
+					users:{
+						id:authentication.item.id
+					}
+				}
+			}
+			return false;
+		},
 		update:AuthUserIsAdmin,
 		delete:AuthUserIsAdmin
 	},
 	fields:{
 		name:{
 			type:Text,
-			defaultValue:''
+			defaultValue:'',
+			access:{
+				read:AuthUserIsScriptUser
+			}
 		},
 		scriptLines:{
 			type:Relationship,
 			ref:'ScriptLine.script',
-			many:true
+			many:true,
+			access:{
+				read:AuthUserIsScriptUser
+			}
 		},
 		contacts:{
 			type:Relationship,
 			ref:'Contact.script',
-			many:true
+			many:true,
+			access:{
+				read:AuthUserIsScriptUser
+			}
 		},
 		questions:{
 			type:Relationship,
 			ref:'ScriptQuestion.script',
-			many:true
+			many:true,
+			access:{
+				read:AuthUserIsScriptUser
+			}
+		},
+		users:{
+			type:Relationship,
+			ref:'User.scripts',
+			many:true,
+			access:{
+				read:AuthUserIsAdmin
+			}
 		}
 	}
 });
@@ -128,7 +163,48 @@ keystone.createList('Script',{
 keystone.createList('ScriptQuestion',{
 	access:{
 		create:AuthUserIsAdmin,
-		read:AuthUserIsAdmin,
+		read:async ({authentication,context})=>{
+			if(AuthUserIsAdmin({authentication})){
+				return true;
+			}
+			else if (AuthUserIsVolunteer({ authentication })) {
+				try {
+					let res = await context.executeGraphQL({
+						context: context.createContext({ skipAccessControl: true }),
+						query: `
+						query($uID: ID!){
+							User(where:{id:$uID}){
+								scripts{
+									id
+								}
+							}
+						}
+					
+					`,
+						variables: {
+							uID: authentication.item.id
+						}
+					});
+					let user = res.data.User;
+
+					return {
+						OR: user.scripts.map((el) => {
+							return {
+								script: {
+									id: el.id
+								}
+							};
+						})
+					};
+
+				}
+				catch (e) {
+					return false;
+				}
+				return false;
+			}
+			return false;
+		},
 		update:AuthUserIsAdmin,
 		delete:AuthUserIsAdmin
 	},
@@ -157,7 +233,46 @@ keystone.createList('ScriptQuestion',{
 keystone.createList('ScriptAnswer',{
 	access:{
 		create:AuthUserIsAdmin,
-		read:AuthUserIsAdmin,
+		read:async({authentication,context})=>{
+			if(AuthUserIsAdmin({authentication})){
+				return true;
+			}
+			else if (AuthUserIsVolunteer({ authentication })) {
+				try {
+					let res = await context.executeGraphQL({
+						context: context.createContext({ skipAccessControl: true }),
+						query: `
+							query($uID: ID!){
+								User(where:{id:$uID}){
+									contacts{
+										id
+									}
+								}
+							}
+						`,
+						variables: {
+							uID: authentication.item.id
+						}
+					});
+					let user = res.data.User;
+
+					return {
+						OR: user.contacts.map((el) => {
+							return {
+								contact: {
+									id: el.id
+								}
+							};
+						})
+					};
+
+				}
+				catch (e) {
+					return false;
+				}
+			}
+			return false;
+		},
 		update:AuthUserIsAdmin,
 		delete:AuthUserIsAdmin
 	},
@@ -180,7 +295,46 @@ keystone.createList('ScriptAnswer',{
 keystone.createList('ScriptLine',{
 	access:{
 		create:AuthUserIsAdmin,
-		read:AuthUserIsAdmin,
+		read:async({authentication,context})=>{
+			if(AuthUserIsAdmin({authentication})){
+				return true;
+			}
+			else if (AuthUserIsVolunteer({ authentication })) {
+				try {
+					let res = await context.executeGraphQL({
+						context: context.createContext({ skipAccessControl: true }),
+						query: `
+							query($uID: ID!){
+								User(where:{id:$uID}){
+									scripts{
+										id
+									}
+								}
+							}
+						`,
+						variables: {
+							uID: authentication.item.id
+						}
+					});
+					let user = res.data.User;
+
+					return {
+						OR: user.scripts.map((el) => {
+							return {
+								script: {
+									id: el.id
+								}
+							};
+						})
+					};
+
+				}
+				catch (e) {
+					return false;
+				}
+			}
+			return false;
+		},
 		update:AuthUserIsAdmin,
 		delete:AuthUserIsAdmin
 	},
@@ -278,7 +432,19 @@ keystone.createList('ReceivedText',{
 keystone.createList('Contact',{
 	access:{
 		create:AuthUserIsAdmin,
-		read:AuthUserIsAdmin,
+		read:({authentication})=>{
+			if(AuthUserIsAdmin({authentication})){
+				return true;
+			}
+			else if (AuthUserIsVolunteer({ authentication })) {
+				return {
+					users:{
+						id:authentication.item.id
+					}
+				}
+			}
+			return false;
+		},
 		update:AuthUserIsAdmin,
 		delete:AuthUserIsAdmin
 	},
@@ -361,6 +527,11 @@ keystone.createList('Contact',{
 			type:Relationship,
 			ref:'ScriptAnswer.contact',
 			many:true
+		},
+		users:{
+			type:Relationship,
+			ref:'User.contacts',
+			many:true
 		}
 	}
 });
@@ -368,17 +539,33 @@ keystone.createList('Contact',{
 keystone.createList('User',{
 	access:{
 		create:AuthUserIsAdmin,
-		read:AuthUserIsAdmin,
+		read:({authentication})=>{
+			if(AuthUserIsAdmin({authentication})){
+				return true;
+			}
+			else if (AuthUserIsVolunteer({ authentication })) {
+				return {
+					id:authentication.item.id
+				}
+			}
+			return false;
+		},
 		update:AuthUserIsAdmin,
-		delete:AuthUserIsAdmin
+		delete:AuthUserIsAdmin,
+		auth:true
 	},
 	fields:{
 		email:{
 			type:Text,
-			isRequired:true
+			isRequired:true,
+			isUnique:true
 		},
 		password:{
-			type:Password
+			type:Password,
+			access:{
+				read:()=>{return false}
+			}
+
 		},
 		role:{
 			type:Select,
@@ -389,6 +576,16 @@ keystone.createList('User',{
 			],
 			dataType:'enum',
 			defaultValue:'none'
+		},
+		scripts:{
+			type:Relationship,
+			ref:'Script.users',
+			many:true
+		},
+		contacts:{
+			type:Relationship,
+			ref:'Contact.users',
+			many:true
 		}
 	}
 
@@ -484,7 +681,39 @@ keystone.extendGraphQLSchema({
 		{
 			schema: 'sentText(content:String!, contact:ID!):SendTextOutput',
 			resolver:sendText,
-			access:AuthUserIsAdmin
+			access:async({authentication,context,args})=>{
+				if(AuthUserIsAdmin({authentication})){
+					return true;
+				}
+				else if(AuthUserIsVolunteer({authentication})){
+					try{
+						let res=await context.executeGraphQL({
+							context:context.createContext({skipAccessControl:true}),
+							query:`
+								query($uID: ID!){
+									User(where:{id:$uID}){
+										contacts{
+											id
+										}
+									}
+								}
+							`,
+							variables:{
+								uID:authentication.item.id
+							}
+						});
+						let user=res.data.User;
+			
+						return user.contacts.some((el)=>{
+							return el.id===args.contact;
+						});
+					}
+					catch(e){
+						return false;
+					}
+				}
+				return false;
+			}
 		}
 	]
 });

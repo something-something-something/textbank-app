@@ -29,6 +29,10 @@ export function Chat(){
 	const fetchData=async()=>{
 			let res=await queryGraphQL(`
 			query ($script: ID!,$contact: ID!, $contactSelected: Boolean!){
+				authenticatedUser{
+					id
+					email
+				}
 				Script(where:{id:$script}){
 					name
 					contacts{
@@ -84,6 +88,10 @@ export function Chat(){
 				contact:contactID,
 				contactSelected: (contactID!=='')
 			});
+
+			if(res.data.authenticatedUser===null){
+				window.location.pathname='/login';
+			}
 		setResults(res.data);
 		return res.data;
 	}
