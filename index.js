@@ -1,12 +1,12 @@
 const {Keystone}=require('@keystonejs/keystone');
 const {MongooseAdapter}=require('@keystonejs/adapter-mongoose');
 const {GraphQLApp}=require('@keystonejs/app-graphql');
-const {Text,DateTimeUtc, Relationship, Integer,Virtual, Select, Password} =require('@keystonejs/fields');
-const { createItem ,getItems,updateItem,getItem} = require('@keystonejs/server-side-graphql-client');
+const {Text,DateTimeUtc, Relationship, Integer,Virtual, Select, Password, Checkbox} =require('@keystonejs/fields');
+const { createItem ,getItems,updateItem,getItem,deleteItem} = require('@keystonejs/server-side-graphql-client');
 const {NextApp} =require('@keystonejs/app-next');
 const {PasswordAuthStrategy}=require('@keystonejs/auth-password')
 const twilioClient=require('twilio')(process.env.TWILSID,process.env.TWILAUTHTOKEN);
-const {AuthUserIsAdmin,AuthUserIsVolunteer,AuthUserIsAdminOrVolunteer,AuthUserIsScriptUser}=require('./access');
+const {AuthUserIsAdmin,AuthUserIsVolunteer,AuthUserIsAdminOrVolunteer,AuthUserIsScriptUser,AuthUserIsAuthedForScriptAnswerList,AuthUserIsAuthedForContacList,AuthUserHasArgContactForCustomSchema}=require('./access');
 
 function serverContext(keystone){ 
 	return keystone.createContext({skipAccessControl:true});
@@ -121,33 +121,27 @@ keystone.createList('Script',{
 		name:{
 			type:Text,
 			defaultValue:'',
-			access:{
-				read:AuthUserIsScriptUser
-			}
 		},
 		scriptLines:{
 			type:Relationship,
 			ref:'ScriptLine.script',
 			many:true,
-			access:{
-				read:AuthUserIsScriptUser
-			}
 		},
 		contacts:{
 			type:Relationship,
 			ref:'Contact.script',
 			many:true,
-			access:{
-				read:AuthUserIsScriptUser
-			}
+			// access:{
+			// 	read:AuthUserIsScriptUser
+			// }
 		},
 		questions:{
 			type:Relationship,
 			ref:'ScriptQuestion.script',
 			many:true,
-			access:{
-				read:AuthUserIsScriptUser
-			}
+			// access:{
+			// 	read:AuthUserIsScriptUser
+			// }
 		},
 		users:{
 			type:Relationship,
@@ -232,12 +226,23 @@ keystone.createList('ScriptQuestion',{
 
 keystone.createList('ScriptAnswer',{
 	access:{
-		create:AuthUserIsAdmin,
-		read:async({authentication,context})=>{
+		create:async({authentication,context,originalInput})=>{
+			//console.log(originalInput);
 			if(AuthUserIsAdmin({authentication})){
 				return true;
 			}
 			else if (AuthUserIsVolunteer({ authentication })) {
+				if(
+					originalInput.contact.create!==undefined||
+					originalInput.question.create!==undefined||
+					originalInput.contact.disconnect!==undefined||
+					originalInput.question.disconnect!==undefined||
+					originalInput.contact.disconnectAll!==undefined||
+					originalInput.question.disconnectAll!==undefined
+				){
+					return false;
+				}
+
 				try {
 					let res = await context.executeGraphQL({
 						context: context.createContext({ skipAccessControl: true }),
@@ -247,6 +252,12 @@ keystone.createList('ScriptAnswer',{
 									contacts{
 										id
 									}
+									scripts{
+										id
+										questions{
+											id
+										}
+									}
 								}
 							}
 						`,
@@ -255,16 +266,22 @@ keystone.createList('ScriptAnswer',{
 						}
 					});
 					let user = res.data.User;
+					console.log('USER');
+					console.log(user);
+					if( 
+						originalInput.contact.connect.id!==undefined&&
+						originalInput.question.connect.id!==undefined
+					){
 
-					return {
-						OR: user.contacts.map((el) => {
-							return {
-								contact: {
-									id: el.id
-								}
-							};
-						})
-					};
+						return user.contacts.some((c)=>{
+							return c.id ===originalInput.contact.connect.id
+						})&&user.scripts.some((s)=>{
+							return s.questions.some((q)=>{
+								return q.id===originalInput.question.connect.id;
+							});
+						});
+					}
+					
 
 				}
 				catch (e) {
@@ -273,18 +290,26 @@ keystone.createList('ScriptAnswer',{
 			}
 			return false;
 		},
-		update:AuthUserIsAdmin,
-		delete:AuthUserIsAdmin
+		read:AuthUserIsAuthedForScriptAnswerList,
+		update:AuthUserIsAuthedForScriptAnswerList,
+		delete:AuthUserIsAuthedForScriptAnswerList
 	},
 	fields:{
 		contact:{
 			type:Relationship,
 			ref:'Contact.answers',
+			isRequired:true,
+			access:{
+				update:AuthUserIsAdmin
+			}
 		},
 		question:{
 			type:Relationship,
 			ref:'ScriptQuestion.answers',
-			isRequired:true
+			isRequired:true,
+			access:{
+				update:AuthUserIsAdmin
+			}
 		},
 		answerText:{
 			type:Text
@@ -432,39 +457,39 @@ keystone.createList('ReceivedText',{
 keystone.createList('Contact',{
 	access:{
 		create:AuthUserIsAdmin,
-		read:({authentication})=>{
-			if(AuthUserIsAdmin({authentication})){
-				return true;
-			}
-			else if (AuthUserIsVolunteer({ authentication })) {
-				return {
-					users:{
-						id:authentication.item.id
-					}
-				}
-			}
-			return false;
-		},
-		update:AuthUserIsAdmin,
+		read:AuthUserIsAuthedForContacList,
+		update:AuthUserIsAuthedForContacList,
 		delete:AuthUserIsAdmin
 	},
 	fields:{
 		script:{
 			type:Relationship,
 			ref:'Script.contacts',
-			isRequired:true
+			isRequired:true,
+			access:{
+				update:AuthUserIsAdmin,
+			}
 		},
 		firstName:{
 			type:Text,
-			defaultValue:''
+			defaultValue:'',
+			access:{
+				update:AuthUserIsAdmin,
+			}
 		},
 		middleName:{
 			type:Text,
-			defaultValue:''
+			defaultValue:'',
+			access:{
+				update:AuthUserIsAdmin,
+			}
 		},
 		lastName:{
 			type:Text,
-			defaultValue:''
+			defaultValue:'',
+			access:{
+				update:AuthUserIsAdmin,
+			}
 		},
 		name:{
 			type:Virtual,
@@ -477,13 +502,42 @@ keystone.createList('Contact',{
 				}
 			}
 		},
+		doNotContact:{
+			type:Virtual,
+			graphQLReturnType:'Boolean',
+			resolver:async (item)=>{
+				try{
+					let doNotContact=await getItems({keystone,listKey:'DoNotContactPhone',returnFields:'id',where:{phone:item.phone}});
+
+					return doNotContact.length!==0
+				}
+				catch(err){
+					console.log('Error contact.doNotContact issue')
+					return true;
+				}
+				return true;
+				
+			}
+		},
+		completed:{
+			type:Checkbox,
+			defaultValue:false
+		},
 		vanid:{
 			type:Text,
-			defaultValue:''
+			defaultValue:'',
+			access:{
+				update:AuthUserIsAdmin,
+				read:AuthUserIsAdmin
+			}
 		},
 
 		phone:{
-			type:Text
+			type:Text,
+			access:{
+				update:AuthUserIsAdmin,
+				read:AuthUserIsAdmin
+			}
 		},
 		//texts sent to contact
 		sentTexts:{
@@ -526,12 +580,34 @@ keystone.createList('Contact',{
 		answers:{
 			type:Relationship,
 			ref:'ScriptAnswer.contact',
-			many:true
+			many:true,
+			access:{
+				update:AuthUserIsAdmin
+			}
 		},
 		users:{
 			type:Relationship,
 			ref:'User.contacts',
-			many:true
+			many:true,
+			access:{
+				update:AuthUserIsAdmin,
+				read:AuthUserIsAdmin
+			}
+		}
+	}
+});
+keystone.createList('DoNotContactPhone',{
+	access:{
+		create:AuthUserIsAdmin,
+		read:AuthUserIsAdmin,
+		update:AuthUserIsAdmin,
+		delete:AuthUserIsAdmin
+	},
+	fields:{
+		phone:{
+			type:Text,
+			isRequired:true,
+			isUnique:true
 		}
 	}
 });
@@ -675,45 +751,47 @@ keystone.extendGraphQLSchema({
 	types:[
 		{
 			type:'type SendTextOutput { content: String!, failedToSend: Boolean!} '
+		},
+		{
+			type:'type toggleDoNotContactOutput { success: Boolean!} '
 		}
 	],
 	mutations: [
 		{
-			schema: 'sentText(content:String!, contact:ID!):SendTextOutput',
+			schema: 'sendText(content:String!, contact:ID!):SendTextOutput',
 			resolver:sendText,
-			access:async({authentication,context,args})=>{
-				if(AuthUserIsAdmin({authentication})){
-					return true;
-				}
-				else if(AuthUserIsVolunteer({authentication})){
-					try{
-						let res=await context.executeGraphQL({
-							context:context.createContext({skipAccessControl:true}),
-							query:`
-								query($uID: ID!){
-									User(where:{id:$uID}){
-										contacts{
-											id
-										}
-									}
-								}
-							`,
-							variables:{
-								uID:authentication.item.id
-							}
-						});
-						let user=res.data.User;
-			
-						return user.contacts.some((el)=>{
-							return el.id===args.contact;
-						});
+			access:AuthUserHasArgContactForCustomSchema
+		},
+		{
+			schema:'toggleDoNotContact(contact:ID!):toggleDoNotContactOutput',
+			resolver:async (par,args,context,info,extra)=>{
+				try{
+					let theContact=await getItem({keystone,listKey:'Contact',itemId:args.contact,returnFields:'phone'});
+
+					let blockArr=await getItems({keystone,listKey:'DoNotContactPhone',where:{phone:theContact.phone},returnFields:'id phone'});
+					if(blockArr.length>0){
+						await deleteItem({keystone,listKey:'DoNotContactPhone',itemId:blockArr[0].id});
 					}
-					catch(e){
-						return false;
+					else{
+						await createItem({keystone,listKey:'DoNotContactPhone',item:{
+							phone:theContact.phone
+						}});
 					}
+					return {
+						success:true
+					};;
+
 				}
-				return false;
-			}
+				catch(err){
+					return {
+						success:false
+					};
+				}
+				return {
+					success:false
+				};
+			},
+			access:AuthUserHasArgContactForCustomSchema
 		}
 	]
 });

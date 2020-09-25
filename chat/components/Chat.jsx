@@ -72,6 +72,9 @@ export function Chat(){
 							content
 							date
 						}
+						doNotContact
+						completed
+						language
 						answers{
 							id
 							answerText
@@ -99,7 +102,7 @@ export function Chat(){
 	const sendText=async(content)=>{
 		let res=await queryGraphQL(`
 				mutation ($contact: ID!,$content: String!){
-					sentText(contact:$contact,content:$content){
+					sendText(contact:$contact,content:$content){
 					content,
 					failedToSend
 					}
@@ -109,7 +112,10 @@ export function Chat(){
 	}
 
 	useEffect(()=>{
-		fetchData()
+		if(scriptID!==''){
+			fetchData();
+		}
+		
 		
 	},[scriptID,contactID]);
 
@@ -157,17 +163,22 @@ export function Chat(){
 		<div style={{gridArea:'header',fontSize:'4vh',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
 			{results.Script.name}
 			{results.Script.selectedContact!==undefined&&(
-				<> - {results.Script.selectedContact[0].name}</>
+				<> - 
+
+					{results.Script.selectedContact[0].name}
+				
+				</>
 			)}
 		</div>
 		<ContactsBar contacts={results.Script.contacts} setContact={setContact}/>
-		<Script lines={results.Script.scriptLines} setTextToSend={setTextToSend} textReplacmentData={textReplacmentData}/>
+		
 		{results.Script.selectedContact!==undefined&&(
 			<>
+			<Script lines={results.Script.scriptLines} setTextToSend={setTextToSend} contact={results.Script.selectedContact[0]} textReplacmentData={textReplacmentData} fetchData={fetchData}/>
 			<ScriptQuestions questions={results.Script.questions} contact={results.Script.selectedContact[0]} fetchData={fetchData}/>
 			<Conversation sent={results.Script.selectedContact[0].sentTexts} received={results.Script.selectedContact[0].receivedTexts} sendText={sendText} fetchData={fetchData}/>
 
-			<TextBox textToSend={textToSend} setTextToSend={setTextToSend} sendText={sendText} fetchData={fetchData}/>
+			<TextBox textToSend={textToSend} setTextToSend={setTextToSend} sendText={sendText} fetchData={fetchData} contact={results.Script.selectedContact[0]}/>
 			</>
 		)}
 		
@@ -189,13 +200,34 @@ function ContactsBar(props){
 	</div>);
 }
 function Script(props){
+	const switchLanguage=async (lang)=>{
+		await queryGraphQL(`
+			mutation($cid:ID!,$lang:ContactLanguageType!){
+				updateContact(id:$cid,data:{
+					language:$lang
+				}){
+					id
+				}
+			}
+		`,{
+			cid:props.contact.id,
+			lang:lang
+		});
+
+		props.fetchData();
+	};
+
 	return (<div style={{gridArea:'script',overflow:'auto'}}> 
+		Language:<select value={props.contact.language} onChange={(ev)=>{switchLanguage(ev.target.value)}}>
+			<option value="en">English</option>
+			<option value="es">Spanish</option>
+		</select>
 		{props.lines.filter((el)=>{
 			return el.parent===null;
 		}).sort((a,b)=>{
 			return a.order-b.order;
 		}).map((el)=>{
-			return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend} textReplacmentData={props.textReplacmentData}/>
+			return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend} textReplacmentData={props.textReplacmentData} contact={props.contact} />
 		})}
 	</div>);
 }
@@ -209,11 +241,13 @@ function ScriptLine(props){
 		}
 		return replacedText
 	}
+	let lineText=props.contact.language==='en'?props.line.en:props.line.es;
+
 	return (<div>
 		<b>{props.line.instructions}</b>
-		<div>{fillReplacements(props.line.en)}</div>
+		<div>{fillReplacements(lineText)}</div>
 		<button onClick={()=>{
-			props.setTextToSend(fillReplacements(props.line.en));
+			props.setTextToSend(fillReplacements(lineText));
 		}}>Text</button>
 		<div style={{marginLeft:'2rem'}}>
 			{props.lines.filter((el)=>{
@@ -221,14 +255,56 @@ function ScriptLine(props){
 			}).sort((a,b)=>{
 				return a.order-b.order;
 			}).map((el)=>{
-				return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend} textReplacmentData={props.textReplacmentData}/>
+				return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend} textReplacmentData={props.textReplacmentData} contact={props.contact} />
 			})}
 		</div>
 	</div>);
 }
 function ScriptQuestions(props){
+	const toggleDoNotContact=async()=>{
+		await queryGraphQL(`
+			mutation($contact:ID!){
+				toggleDoNotContact(contact:$contact){
+					success
+				}
+			}
+		
+		`,{
+			contact:props.contact.id
+		});
+
+		props.fetchData();
+	}
+	const toggleCompleted=async()=>{
+		await queryGraphQL(`
+		mutation($cid:ID!,$status:Boolean!){
+			updateContact(id:$cid,data:{
+				completed:$status
+			}){
+				id
+			}
+		}
+	`,{
+		cid:props.contact.id,
+		status:!props.contact.completed
+	});
+
+		props.fetchData();
+	}
+
+
 	return (<div style={{gridArea:'questions',overflow:'auto'}}> 
 		Questions<br/>
+		{props.contact.completed?'COMPLETED!':'INCOMPLETE'}
+		<button onClick={toggleCompleted}>{props.contact.completed?'Mark incomplete':'mark complete'}</button>
+		<div>
+			Has Contact requested not to be Contacted? 
+			<br/>{props.contact.doNotContact?'Yes':'No'}
+			<button onClick={toggleDoNotContact}>
+			{props.contact.doNotContact?'Remove From Do Not Contact':'Add to Do Not Contact'}
+			</button> 
+		</div>
+		
 		{props.questions.map((el)=>{
 			return <div key={el.id}>
 				{el.questionText}
@@ -348,7 +424,13 @@ function Message(props){
 	</div>
 }
 function TextBox(props){
-	
+	//move restriction serverside
+	if(props.contact.doNotContact){
+		return(<div  style={{gridArea:'textbox'}}>
+			User Is marked as Do Not Contact
+		</div>);
+	}
+
 	return <div  style={{gridArea:'textbox',display:'flex'}}>
 			<textarea style={{maxWidth:'50vh',width:'80rem', marginLeft:'auto'}}
 			value={props.textToSend} 
