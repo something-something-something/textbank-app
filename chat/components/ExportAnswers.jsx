@@ -100,7 +100,7 @@ function AnswerRow(props){
 					return el.question.id===q.id
 				}).map((a)=>{
 					return a.answerText
-				}).join('\t')}
+				}).join(',')}
 			</td>);
 		})}
 	</tr>);

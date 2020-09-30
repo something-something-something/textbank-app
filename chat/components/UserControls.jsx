@@ -4,7 +4,7 @@ import {useRouter} from 'next/router'
 
 export function AllUsersControls(){
 	const[users,setUsers]=useState([])
-
+	const [invites,setInvites]=useState([]);
 	const fetchData=async ()=>{
 		let res=await queryGraphQL(`
 			query{
@@ -14,13 +14,18 @@ export function AllUsersControls(){
 					role
 					password_is_set
 				}
+				allEmailInvites{
+					id
+					email
+					dateCreated
+				}
 			}
 
 
 		`,{});
 		
-		setUsers(res.data.allUsers)
-		
+		setUsers(res.data.allUsers);
+		setInvites(res.data.allEmailInvites);
 	}
 
 	useEffect(()=>{
@@ -29,10 +34,83 @@ export function AllUsersControls(){
 
 
 	return (<div>
+		<InviteUserForm fetchData={fetchData}/>
+		<EmailInviteTable invites={invites} fetchData={fetchData}/>
+
 		<NewUserForm fetchData={fetchData}/>
 		<UserTable users={users}  fetchData={fetchData} />
 	</div>);
 }
+
+function InviteUserForm(props){
+	const [email,setEmail]=useState('');
+
+	const sendInvite=async ()=>{
+		let res=await queryGraphQL(`
+			mutation($email:String!){
+				sendInviteEmail(email:$email){
+					success
+				}
+			}
+		`,
+		{
+			email:email
+		});
+		console.log(res)
+		if(res.data.sendInviteEmail.success){
+			alert('Invite Sent')
+		}
+		else{
+			alert('Email Invite Failed');
+		}
+		props.fetchData();
+	}
+
+	return (<div>
+		Invite<input type="text" value={email} onChange={(ev)=>{setEmail(ev.target.value)}}/>
+		<button onClick={sendInvite}>Invite</button>
+	</div>)
+}
+
+function EmailInviteTable(props){
+	const deleteInvite=async(invID)=>{
+		await queryGraphQL(`
+			mutation($inv:ID!){
+				deleteEmailInvite(id:$inv){
+					id
+				}
+			}
+		
+		`,
+		{
+			inv:invID
+		});
+		props.fetchData();
+	}
+
+
+	return (<table>
+		<thead>
+			<tr>
+				<th>Email</th>
+				<th>Date</th>
+				<th>Delete</th>
+			</tr>
+		</thead>
+		<tbody>
+			{props.invites.map((inv)=>{
+				return(
+					<tr key={inv.id}>
+						<td>{inv.email}</td>
+						<td>{inv.dateCreated}</td>
+						<td><button onClick={()=>{deleteInvite(inv.id)}}>Delete</button></td>
+					</tr>
+				)
+			})}
+		</tbody>
+	</table>);
+}
+
 
 function NewUserForm(props){
 	const [email,setEmail] =useState('');

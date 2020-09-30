@@ -7,6 +7,13 @@ const {NextApp} =require('@keystonejs/app-next');
 const {PasswordAuthStrategy}=require('@keystonejs/auth-password')
 const twilioClient=require('twilio')(process.env.TWILSID,process.env.TWILAUTHTOKEN);
 const {AuthUserIsAdmin,AuthUserIsVolunteer,AuthUserIsAdminOrVolunteer,AuthUserIsScriptUser,AuthUserIsAuthedForScriptAnswerList,AuthUserIsAuthedForContacList,AuthUserHasArgContactForCustomSchema}=require('./access');
+const crypto=require('crypto');
+const bycrypt=require('bcryptjs');
+const nodemailer=require('nodemailer');
+
+const mail=require('./mail');
+
+
 
 function serverContext(keystone){ 
 	return keystone.createContext({skipAccessControl:true});
@@ -612,6 +619,33 @@ keystone.createList('DoNotContactPhone',{
 	}
 });
 
+
+keystone.createList('EmailInvite',{
+	access:{
+		create:()=>{return false},
+		read:AuthUserIsAdmin,
+		update:()=>{return false},
+		delete:AuthUserIsAdmin,
+	},
+	fields:{
+		tokenHash:{
+			type:Text,
+			isRequired:true,
+			access:{
+				read:()=>{return false}
+			}
+		},
+		email:{
+			type:Text,
+			isRequired:true,
+		},
+		dateCreated:{
+			type:DateTimeUtc,
+			isRequired:true,
+		}
+	}
+});
+
 keystone.createList('User',{
 	access:{
 		create:AuthUserIsAdmin,
@@ -754,6 +788,12 @@ keystone.extendGraphQLSchema({
 		},
 		{
 			type:'type toggleDoNotContactOutput { success: Boolean!} '
+		},
+		{
+			type: 'type sendEmailInviteOutput { success: Boolean!}'
+		},
+		{
+			type:'type createVolunteerFromTokenOutput { success: Boolean!}'
 		}
 	],
 	mutations: [
@@ -779,7 +819,7 @@ keystone.extendGraphQLSchema({
 					}
 					return {
 						success:true
-					};;
+					};
 
 				}
 				catch(err){
@@ -792,6 +832,99 @@ keystone.extendGraphQLSchema({
 				};
 			},
 			access:AuthUserHasArgContactForCustomSchema
+		},
+		{
+			schema:'sendInviteEmail(email:String!):sendEmailInviteOutput',
+			resolver:async (par,args,context,info,extra)=>{
+				try{
+
+					let token=crypto.randomBytes(20).toString('base64');
+					let tokenHash=await bycrypt.hash(token,10);
+					let inviteItem=await createItem({keystone,listKey:'EmailInvite',item:{
+						email:args.email,
+						tokenHash:tokenHash,
+						dateCreated:(new Date()).toISOString()
+
+					}});
+					console.log('creted in db');
+
+					console.log(token);
+					console.log(tokenHash);
+					let t=await mail.createTransport();
+					let email=await mail.email(t,args.email,'Textbank Invite',`
+
+					your login email will be ${args.email}
+					token ${token}
+					
+					`);
+					console.log('email sent')
+					if(process.env.STMPSERVERHOST==='smtp.ethereal.email'){
+						console.log('showing test')
+						console.log('Email preview: '+nodemailer.getTestMessageUrl(email));
+						console.log('done test send')
+					}
+					console.log('done')
+					return {
+						success:true
+					};
+				}
+				catch(err){
+					console.log(err);
+					return {
+						success:false
+					};
+				}
+				return {
+					success:false
+				};
+			},
+			access:AuthUserIsAdmin
+		},
+		{
+			schema:'createVolunteerFromToken(token:String!,password:String!):createVolunteerFromTokenOutput',
+			resolver:async (par,args,context,info,extra)=>{
+				try{
+					let invites=await getItems({keystone,listKey:'EmailInvite',returnFields:'id tokenHash email dateCreated'});
+					let validInvites= invites.filter((el)=>{
+						let dc=(new Date(el.dateCreated)).getTime();
+						let bcRes=bycrypt.compareSync(args.token,el.tokenHash);
+						console.log('testing invites');
+						console.log(dc);
+						console.log(bcRes);
+						return (dc>(Date.now()-1000*60*60*24))&&bcRes
+					});
+
+					if(validInvites.length>0){
+						theInvite=validInvites[0];
+						await deleteItem({keystone,listKey:'EmailInvite',itemId:theInvite.id});
+						await createItem({keystone,listKey:'User',returnFields:'id',item:{
+							email:theInvite.email,
+							password:args.password,
+							role:'volunteer'
+						}});
+						return {
+							success:true
+						};
+					}
+					else{
+						console.log('token issue');
+						
+						return {
+							success:false
+						}
+					}
+
+				}
+				catch(err){
+					console.log(err);
+					return {
+						success:false
+					}
+				}
+				return {
+					success:false
+				}
+			}
 		}
 	]
 });
