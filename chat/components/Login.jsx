@@ -1,10 +1,13 @@
 import {useState,useEffect} from 'react'
 import {queryGraphQL} from '../lib/graphql'
+import {useRouter} from 'next/router';
+
 
 export function LoginForm(){
 	const [userName,setUserName]=useState('');
 	const [password,setPassword]=useState('');
 	const [user,setUser]=useState(null);
+	const router=useRouter();
 
 	const [authFailure,setAuthFailure]=useState(false)
 	const fetchData=async ()=>{
@@ -42,7 +45,10 @@ export function LoginForm(){
 			setAuthFailure(true);
 		}
 		else{
+			router.push('/');
+			
 			setAuthFailure(false);
+			
 		}
 		fetchData();
 	}

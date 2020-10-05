@@ -1,6 +1,11 @@
 import {useEffect,useState} from 'react';
 import {useRouter} from 'next/router'
 import {queryGraphQL} from '../lib/graphql';
+import dynamic from 'next/dynamic';
+
+const DynamicNavMenu=dynamic(()=>{
+	return  import('../components/NavMenu')
+},{ssr:false});
 
 export default function AcceptInvite(props){
 	const [passwordA,setPasswordA]=useState('');
@@ -39,6 +44,7 @@ export default function AcceptInvite(props){
 	}
 
 	return (<div>
+		<DynamicNavMenu/>
 		Password:<input type="password" value={passwordA} onChange={(ev)=>{setPasswordA(ev.target.value)}}/><br/>
 		ReType Password:<input type="password" value={passwordB} onChange={(ev)=>{setPasswordB(ev.target.value)}}/><br/>
 		{issuesWithPass.length===0&&(<button onClick={addUser}>Join</button>)}

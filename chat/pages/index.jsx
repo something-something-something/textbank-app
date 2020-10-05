@@ -2,6 +2,9 @@ import dynamic from 'next/dynamic';
 import {useEffect,useState} from 'react';
 
 import {queryGraphQL} from '../lib/graphql'
+const DynamicNavMenu=dynamic(()=>{
+	return  import('../components/NavMenu')
+},{ssr:false});
 
 function ScriptListPage(){
 	return <div>
@@ -29,18 +32,23 @@ function ScriptList(){
 		if(res.data.authenticatedUser===null){
 			window.location.pathname='/login';
 		}
-		setScripts(res.data.allScripts)
+		else{
+			setScripts(res.data.allScripts)
+		}
+		
 	}
 
 	useEffect(()=>{
 		fetchData();
 	},[])
 
-	return (<ul>
+	return (<div>
+		<DynamicNavMenu/>
+		<ul>
 			{scripts.map((s)=>{
 				return <li key={s.id}> <a href={'/chat?script='+encodeURIComponent(s.id)}>{s.name}</a></li>
 			})}
-		</ul>);
+		</ul></div>);
 }
 
 

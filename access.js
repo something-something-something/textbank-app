@@ -152,6 +152,18 @@ async function AuthUserHasArgContactForCustomSchema({authentication,context,args
 	return false;
 }
 
+function AuthUserIsAuthedForUserList({authentication}){
+	if(AuthUserIsAdmin({authentication})){
+		return true;
+	}
+	else if (AuthUserIsVolunteer({ authentication })) {
+		return {
+			id:authentication.item.id
+		}
+	}
+	return false;
+}
+
 module.exports={
 	AuthUserIsAdmin,
 	AuthUserIsVolunteer,
@@ -159,5 +171,6 @@ module.exports={
 	AuthUserIsScriptUser,
 	AuthUserIsAuthedForScriptAnswerList,
 	AuthUserIsAuthedForContacList,
+	AuthUserIsAuthedForUserList,
 	AuthUserHasArgContactForCustomSchema,
 }

@@ -6,7 +6,7 @@ const { createItem ,getItems,updateItem,getItem,deleteItem} = require('@keystone
 const {NextApp} =require('@keystonejs/app-next');
 const {PasswordAuthStrategy}=require('@keystonejs/auth-password')
 const twilioClient=require('twilio')(process.env.TWILSID,process.env.TWILAUTHTOKEN);
-const {AuthUserIsAdmin,AuthUserIsVolunteer,AuthUserIsAdminOrVolunteer,AuthUserIsScriptUser,AuthUserIsAuthedForScriptAnswerList,AuthUserIsAuthedForContacList,AuthUserHasArgContactForCustomSchema}=require('./access');
+const {AuthUserIsAdmin,AuthUserIsVolunteer,AuthUserIsAdminOrVolunteer,AuthUserIsScriptUser,AuthUserIsAuthedForScriptAnswerList,AuthUserIsAuthedForContacList,AuthUserHasArgContactForCustomSchema,AuthUserIsAuthedForUserList}=require('./access');
 const crypto=require('crypto');
 const bycrypt=require('bcryptjs');
 const nodemailer=require('nodemailer');
@@ -526,6 +526,31 @@ keystone.createList('Contact',{
 				
 			}
 		},
+		lastText:{
+			type:Virtual,
+			graphQLReturnType:'Float',
+			resolver:async (item)=>{
+				try{
+					let sent=await getItems({keystone,listKey:'SentText',returnFields:'date',where:{to:item.phone}});
+					let received=await getItems({keystone,listKey:'ReceivedText',returnFields:'date',where:{from:item.phone}});
+					let both=sent.concat(received);
+					console.log(both);
+					both=both.sort((a,b)=>{
+						return (new Date(b.date)).getTime() - (new Date(a.date)).getTime();
+					});
+
+					if(both.length>0){
+						return (new Date(both[0].date)).getTime();
+					}
+					else{
+						return 0;
+					}
+				}
+				catch(err){
+					return 0;
+				}
+			}
+		},
 		completed:{
 			type:Checkbox,
 			defaultValue:false
@@ -649,18 +674,8 @@ keystone.createList('EmailInvite',{
 keystone.createList('User',{
 	access:{
 		create:AuthUserIsAdmin,
-		read:({authentication})=>{
-			if(AuthUserIsAdmin({authentication})){
-				return true;
-			}
-			else if (AuthUserIsVolunteer({ authentication })) {
-				return {
-					id:authentication.item.id
-				}
-			}
-			return false;
-		},
-		update:AuthUserIsAdmin,
+		read:AuthUserIsAuthedForUserList,
+		update:AuthUserIsAuthedForUserList,
 		delete:AuthUserIsAdmin,
 		auth:true
 	},
@@ -668,12 +683,17 @@ keystone.createList('User',{
 		email:{
 			type:Text,
 			isRequired:true,
-			isUnique:true
+			isUnique:true,
+			access:{
+				read:AuthUserIsAdmin,
+				update:AuthUserIsAdmin
+			},
 		},
 		password:{
 			type:Password,
 			access:{
-				read:()=>{return false}
+				read:AuthUserIsAdmin,
+				update:AuthUserIsAdmin
 			}
 
 		},
@@ -685,17 +705,30 @@ keystone.createList('User',{
 				{value:'admin',label:'Administrator'}
 			],
 			dataType:'enum',
-			defaultValue:'none'
+			defaultValue:'none',
+			access:{
+				read:AuthUserIsAdmin,
+				update:AuthUserIsAdmin
+			}
 		},
 		scripts:{
 			type:Relationship,
 			ref:'Script.users',
-			many:true
+			many:true,
+			access:{
+				update:AuthUserIsAdmin
+			}
+		},
+		nickName:{
+			type:Text,
 		},
 		contacts:{
 			type:Relationship,
 			ref:'Contact.users',
-			many:true
+			many:true,
+			access:{
+				update:AuthUserIsAdmin
+			}
 		}
 	}
 

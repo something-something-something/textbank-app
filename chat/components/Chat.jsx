@@ -1,10 +1,12 @@
-import {useState,useEffect} from 'react'
+import {useState,useEffect,useRef} from 'react'
 import {queryGraphQL} from '../lib/graphql'
 import {useRouter} from 'next/router'
-
+import styles from './Chat.module.css'
 export function Chat(){
 	const [textToSend,setTextToSend]=useState('');
 	const router=useRouter();
+	const [notificationPerm,setNotificationPerm]=useState(Notification.permission)
+	
 	let contactID=router.query.contact!==undefined?router.query.contact:''
 	
 	let scriptID=router.query.script!==undefined?router.query.script:''
@@ -26,6 +28,62 @@ export function Chat(){
 		}
 	});
 	
+
+	const noteifications= (originalContacts,updateContacts)=>{
+		if(Notification.permission==='granted'){
+
+
+
+			updateContacts.forEach(async(con)=>{
+				// console.log('running');
+				// console.log(con.lastText)
+				// console.log(originalContacts);
+				if(originalContacts.some((oldc)=>{
+					// console.log(oldc);
+					// console.log(con);	
+					return oldc.id===con.id&&oldc.lastText!==con.lastText;
+				
+				})){
+					// console.log('potential noteification')
+					
+					let contact=con;
+					console.log('scaning')
+					let cres=await queryGraphQL(`
+						query($cid: ID!){
+							Contact(where:{id:$cid}){
+								receivedTexts{
+									id
+									date
+									content
+								}
+							}
+						}
+					`,{
+						cid:contact.id
+					});
+					console.log(cres);
+					let text=cres.data.Contact.receivedTexts.find((rt)=>{ 
+						
+						return (new Date(rt.date)).getTime()=== contact.lastText
+					
+					});
+					if(text!==undefined){
+						new Notification(contact.name+': '+text.content);
+					}
+						
+					
+				}
+			})
+		}
+	}
+	const prevContactsRef=useRef();
+	useEffect(()=>{
+		prevContactsRef.current=results.Script.contacts.map((el)=>{return el})
+		
+	})
+	
+
+
 	const fetchData=async()=>{
 			let res=await queryGraphQL(`
 			query ($script: ID!,$contact: ID!, $contactSelected: Boolean!){
@@ -36,8 +94,14 @@ export function Chat(){
 				Script(where:{id:$script}){
 					name
 					contacts{
-						name,
+						name
+						firstName
+						lastName
+						middleName
 						id
+						lastText
+						doNotContact
+						completed
 					}
 					scriptLines{
 						id
@@ -92,12 +156,19 @@ export function Chat(){
 				contactSelected: (contactID!=='')
 			});
 
-			if(res.data.authenticatedUser===null){
-				window.location.pathname='/login';
-			}
+		if(res.data.authenticatedUser===null){
+			window.location.pathname='/login';
+		}
+		noteifications( prevContactsRef.current,res.data.Script.contacts)
+		
+
+		
 		setResults(res.data);
 		return res.data;
 	}
+
+
+
 
 	const sendText=async(content)=>{
 		let res=await queryGraphQL(`
@@ -112,9 +183,7 @@ export function Chat(){
 	}
 
 	useEffect(()=>{
-		if(scriptID!==''){
-			fetchData();
-		}
+
 		
 		
 	},[scriptID,contactID]);
@@ -123,20 +192,35 @@ export function Chat(){
 		console.log(results)
 		return results.allReceivedTexts.length+results.allSentTexts.length;
 	}
+	const requestNotificationPermision=async()=>{
+		console.log('Not?')
+		await Notification.requestPermission();
+		if(Notification.permission==='granted'){
+			new Notification('In order to recive notifications please leave the tab open');
+		}
+		setNotificationPerm(Notification.permission);
+	}
+	
+
 
 	useEffect(()=>{
-		let timer=setInterval(async ()=>{
-			console.log('updating');
-			
-			fetchData()
-			
-			
-			
-		},(Math.floor(Math.random()*10)+5)*1000);
+		if(scriptID!==''){
+			fetchData();
+		
+			let timer=setInterval(async ()=>{
+				console.log('updating');
+				
+				fetchData()
+				
+				
+			},(Math.floor(Math.random()*10)+5)*1000);
 
 
-		return ()=>{clearInterval(timer)};
+			return ()=>{clearInterval(timer)};
+		}
 	},[scriptID,contactID])
+
+	
 
 	let textReplacmentData={
 		contact:{}
@@ -145,22 +229,10 @@ export function Chat(){
 		textReplacmentData.contact.firstName=results.Script.selectedContact[0].firstName;
 	}
 
-	return <div style={{
-			margin:'0px',
-			display:'grid',
-			gridTemplateAreas:`
-				"cbar header header"
-				"cbar script questions"
-				"cbar conv conv"
-				"cbar textbox textbox"
-			`,
-			gridTemplateColumns:'10rem 1fr 1fr',
-			gridTemplateRows:'5vh 35vh 45vh 10vh',
-			rowGap:'0px',
-			overflow:'hidden'
-			
-	}}>
-		<div style={{gridArea:'header',fontSize:'4vh',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+	return <div className={styles.Chat}>
+		<div className={styles.chatHeader}>
+			<a href="/">&larr;</a>
+			{ (notificationPerm==='default')&&(<button onClick={requestNotificationPermision}>Notify Me </button>)}
 			{results.Script.name}
 			{results.Script.selectedContact!==undefined&&(
 				<> - 
@@ -170,7 +242,7 @@ export function Chat(){
 				</>
 			)}
 		</div>
-		<ContactsBar contacts={results.Script.contacts} setContact={setContact}/>
+		<ContactsBar contacts={results.Script.contacts} setContact={setContact} contactID={contactID}/>
 		
 		{results.Script.selectedContact!==undefined&&(
 			<>
@@ -185,14 +257,52 @@ export function Chat(){
 	</div>
 }
 function ContactsBar(props){
-	
-	return (<div style={{gridArea:'cbar',overflow:'auto'}}>
-		{props.contacts.map((el)=>{
+	const [searchText,setSearchText]=useState('');
+	return (<div className={styles.contactsBar}>
+		
+		<input className={styles.contactSearch} value={searchText} onChange={(ev)=>{setSearchText(ev.target.value)}} type="text" placeholder="Search Contacts"/>
+		{props.contacts.concat([]).sort((a,b)=>{
+			return b.lastText - a.lastText;
+		}).filter((el)=>{
+			if(searchText===''){
+				return true;
+			}
+
+			let splitText=searchText.split(' ').filter((sw)=>{
+				return sw!=='';
+			});
+			return splitText.reduce((acc,curr)=>{
+				let b=false;
+				if(el.firstName.includes(curr)){
+					b=true;
+				}
+				if(el.middleName.includes(curr)){
+					b=true;
+				}
+				if(el.lastName.includes(curr)){
+					b=true;
+				}
+
+				return acc||b;
+			},false);
+
+		}).map((el)=>{
+
+			let classes=[styles.contactButton]
+			if(el.completed){
+				classes.push(styles.contactButtonCompleted);
+			}
+			
+			if(el.doNotContact){
+				classes.push(styles.contactButtonDNC);
+			}
+			if(el.id===props.contactID){
+				classes.push(styles.contactButtonSelected);
+			}
+
+
 			return (<button key={el.id} onClick={()=>{props.setContact(el.id)}}
-			style={{
-				display:'block',
-				width:'100%'
-			}}
+			className={classes.join(' ')}
 			>
 				{el.name}
 			</button>);
@@ -441,7 +551,7 @@ function TextBox(props){
 				try{
 					let message=await props.sendText(props.textToSend);
 					console.log(message);
-					if(message.sentText.failedToSend){
+					if(message.sendText.failedToSend){
 						alert('Failed To Send! Have they Refused to recive Mesages?');
 					}
 					else{
