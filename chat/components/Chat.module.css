@@ -37,12 +37,13 @@
 	width:100%;
 	font-size: 1rem;
 	border-style: solid;
-	border-width: 0.1rem ;
+	border-width: 0.2rem ;
 	border-color: rgb(0,0,0);
+	outline: none;
 }
 
 .contactButtonCompleted{
-	
+	background-color: rgb(100, 232, 255);
 	
 }
 .contactButtonCompleted::before{
@@ -55,7 +56,8 @@
 	background-color: rgb(255,100,100);
 }
 .contactButtonSelected{
-	font-weight: bold;
-	border-top-width: 0.5rem;
-	border-bottom-width: 0.5rem;
+	
+	border-color: rgb(0,255,0);
+	/* border-top-width: 0.5rem;
+	border-bottom-width: 0.5rem; */
 }

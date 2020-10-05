@@ -47,7 +47,10 @@ export function ScriptControls(props){
 					users{
 						id,
 						email,
-
+						contacts{
+							id
+							name
+						}
 					}
 				}
 				allUsers{
@@ -111,8 +114,12 @@ function ScriptUsers(props){
 	}
 
 	const removeUser=async (userID)=>{
+
+		let usersContacts=props.script.contacts.filter((el)=>{return el.users.some((u)=>{return u.id===userID})}).map((el)=>{
+			return {id:el.id}
+		});
 		await queryGraphQL(`
-			mutation($userID:ID!,$scriptID:ID!){
+			mutation($userID:ID!,$scriptID:ID!,$contacts:[ContactWhereUniqueInput!]!){
 				updateScript(id:$scriptID,data:{
 					users:{
 						disconnect:{
@@ -122,18 +129,58 @@ function ScriptUsers(props){
 				}){
 					id
 				}
+				updateUser(id:$userID,data:{
+					contacts:{
+						disconnect:$contacts
+					}
+				}){
+					id
+				}
 			}
 		`,{
 			userID:userID,
-			scriptID:props.script.id
+			scriptID:props.script.id,
+			contacts:usersContacts
 		});
 		props.fetchData();
 	}
 
+	const removeContact=async (uid,cid)=>{
+		await queryGraphQL(`
+			mutation($userID:ID!,$contactID:ID!){
+				updateUser(id:$userID,data:{
+					contacts:{
+						disconnect:{
+							id:$contactID
+						}
+					}
+				}){
+					id
+				}
+			}
+		`,{
+			userID:uid,
+			contactID:cid
+		});
+		props.fetchData();
+	};
+
+	
+
+
 	return (<div>
 		Users:<ul>
 		{props.script.users.map((u)=>{
-			return <li key={u.id}>{u.email} <button onClick={()=>{removeUser(u.id)}}>Remove</button></li>
+			return <li key={u.id}>{u.email} <button onClick={()=>{removeUser(u.id)}}>Remove</button>
+			<details><summary>Contacts</summary>
+				{u.contacts.map((c)=>{
+					return <div key={c.id}>{c.name} <button onClick={()=>{ removeContact(u.id,c.id)}}>Remove</button> </div>
+				})}
+			
+			</details>
+			
+			<ContactAdderInput script={props.script} user={u} fetchData={props.fetchData}/>
+			</li>
 		})}
 		</ul>
 		<select value="" onChange={(ev)=>{addUser(ev.target.value)}}>
@@ -149,7 +196,46 @@ function ScriptUsers(props){
 	</div>);
 }
 
+function ContactAdderInput(props){
+	const [numContacts,setNumContacts]=useState(0);
 
+	let unasignedContacts=props.script.contacts.filter((c)=>{return c.users.length===0});
+
+
+
+	const addContacts=async ()=>{
+		await queryGraphQL(`
+			mutation($userID:ID!,$contacts:[ContactWhereUniqueInput!]!){
+				updateUser(id:$userID,data:{
+					contacts:{
+						connect:$contacts
+					}
+				}){
+					id
+				}
+			}
+		`,{
+			userID:props.user.id,
+			contacts:unasignedContacts.slice(0,numContacts).map((el)=>{return {id:el.id}})
+		});
+		props.fetchData();
+	}
+
+	return <>Number of Contacts to Add <input type="number" value={numContacts} 
+		onChange={(ev)=>{
+			let num=parseInt(ev.target.value,10);
+			if(num!==NaN&&num<=unasignedContacts.length){
+				setNumContacts(num)
+			}
+			
+		
+		}}
+	
+	/>/{unasignedContacts.length}
+		{numContacts>0&&<button onClick={addContacts}>Add Contacts</button>}
+	
+	</>;
+}
 
 function ScriptEditor(props){
 	return (<div>
@@ -158,12 +244,6 @@ function ScriptEditor(props){
 		<ScriptLineEditorList script={props.script} fetchData={props.fetchData} />
 		<AddScriptLineButton fetchData={props.fetchData} script={props.script}/>
 		<ContactEditor fetchData={props.fetchData} script={props.script}/>
-		<details>
-		<summary>JSON DEBUG</summary>	
-			<pre>
-				{JSON.stringify(props.script,null,'\t')}
-			</pre>
-		</details>
 		
 	</div>);
 }
@@ -769,6 +849,23 @@ function ContactTable(props){
 		}
 	}
 
+	const selectAll= ()=>{
+		setSelectRows(props.script.contacts.map((el)=>{return el.id}));
+	}
+	const deleteSelected=async ()=>{
+		await queryGraphQL(`
+			mutation ($cids:[ID!]!){
+				deleteContacts(ids:$cids){
+					id
+				}
+			}
+		`,{
+			cids:selectedRows
+
+		});
+		props.fetchData();
+	}
+
 	const addContactsToUser=async (userid)=>{
 		await queryGraphQL(`
 			mutation($uid:ID!,$contacts:[ContactWhereUniqueInput!]!){
@@ -808,6 +905,8 @@ function ContactTable(props){
 				return <option key={el.id} value={el.id}>{el.email}</option>
 			})}
 		</select>
+		<button onClick={deleteSelected}>Delete Selected</button>
+		<button onClick={selectAll}>Select All</button>
 		<table>
 			<thead>
 				<tr>

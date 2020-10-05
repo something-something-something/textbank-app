@@ -90,6 +90,7 @@ export function Chat(){
 				authenticatedUser{
 					id
 					email
+					nickName
 				}
 				Script(where:{id:$script}){
 					name
@@ -246,7 +247,7 @@ export function Chat(){
 		
 		{results.Script.selectedContact!==undefined&&(
 			<>
-			<Script lines={results.Script.scriptLines} setTextToSend={setTextToSend} contact={results.Script.selectedContact[0]} textReplacmentData={textReplacmentData} fetchData={fetchData}/>
+			<Script lines={results.Script.scriptLines} setTextToSend={setTextToSend} contact={results.Script.selectedContact[0]} user={results.authenticatedUser} textReplacmentData={textReplacmentData} fetchData={fetchData}/>
 			<ScriptQuestions questions={results.Script.questions} contact={results.Script.selectedContact[0]} fetchData={fetchData}/>
 			<Conversation sent={results.Script.selectedContact[0].sentTexts} received={results.Script.selectedContact[0].receivedTexts} sendText={sendText} fetchData={fetchData}/>
 
@@ -262,6 +263,20 @@ function ContactsBar(props){
 		
 		<input className={styles.contactSearch} value={searchText} onChange={(ev)=>{setSearchText(ev.target.value)}} type="text" placeholder="Search Contacts"/>
 		{props.contacts.concat([]).sort((a,b)=>{
+			if(a.doNotContact&&!b.doNotContact){
+				return 1;
+			}
+			if(b.doNotContact&&!a.doNotContact){
+				return -1;
+			}
+			if(a.completed&&!b.completed){
+				return 1;
+			}
+			if(b.completed&&!a.completed){
+				return -1
+			}
+		
+
 			return b.lastText - a.lastText;
 		}).filter((el)=>{
 			if(searchText===''){
@@ -310,6 +325,11 @@ function ContactsBar(props){
 	</div>);
 }
 function Script(props){
+	const [nickName,setNickName]=useState(props.user.nickName);
+
+	if(nickName!==props.user.nickName){
+
+	}
 	const switchLanguage=async (lang)=>{
 		await queryGraphQL(`
 			mutation($cid:ID!,$lang:ContactLanguageType!){
@@ -327,17 +347,38 @@ function Script(props){
 		props.fetchData();
 	};
 
+	const updateNickName=async ()=>{
+		await queryGraphQL(`
+			mutation($uid:ID!,$nick:String!){
+				updateUser(id:$uid,data:{
+					nickName:$nick
+				}){
+					id
+				}
+			}
+		
+		`,{
+			uid:props.user.id,
+			nick:nickName,
+		});
+
+		props.fetchData();
+	};
+
 	return (<div style={{gridArea:'script',overflow:'auto'}}> 
 		Language:<select value={props.contact.language} onChange={(ev)=>{switchLanguage(ev.target.value)}}>
 			<option value="en">English</option>
 			<option value="es">Spanish</option>
 		</select>
+		
+		Your nickname:<input value={nickName} onChange={(ev)=>{setNickName(ev.target.value)}}/>
+		{nickName!==props.user.nickName&&(<button onClick={updateNickName}>Save</button>)}
 		{props.lines.filter((el)=>{
 			return el.parent===null;
 		}).sort((a,b)=>{
 			return a.order-b.order;
 		}).map((el)=>{
-			return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend} textReplacmentData={props.textReplacmentData} contact={props.contact} />
+			return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend}  contact={props.contact} user={props.user} />
 		})}
 	</div>);
 }
@@ -345,10 +386,15 @@ function ScriptLine(props){
 
 	let fillReplacements=(text)=>{
 		let replacedText=text;
-		if(props.textReplacmentData.contact.firstName!==undefined){
-			replacedText=replacedText.replaceAll('{ContactFirstName}',props.textReplacmentData.contact.firstName);
-			replacedText=replacedText.replaceAll('{VoterName}',props.textReplacmentData.contact.firstName);
+		if(props.contact.firstName!==undefined){
+			replacedText=replacedText.replaceAll('{ContactFirstName}',props.contact.firstName);
+			replacedText=replacedText.replaceAll('{VoterName}',props.contact.firstName);
 		}
+		if(props.user.nickName!==null||props.user.nickName!==''){
+			replacedText=replacedText.replaceAll('{UserNickName}',props.user.nickName);
+			replacedText=replacedText.replaceAll('{VolunteerName}',props.user.nickName);
+		}
+
 		return replacedText
 	}
 	let lineText=props.contact.language==='en'?props.line.en:props.line.es;
@@ -365,7 +411,7 @@ function ScriptLine(props){
 			}).sort((a,b)=>{
 				return a.order-b.order;
 			}).map((el)=>{
-				return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend} textReplacmentData={props.textReplacmentData} contact={props.contact} />
+				return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend} contact={props.contact} user={props.user} />
 			})}
 		</div>
 	</div>);
@@ -482,13 +528,28 @@ function ScriptQuestionAnswer(props){
 		});
 		props.fetchData();
 	}
-	return (<div> 
-		{needsSave&&(
+
+	const deleteAnswer=async()=>{
+		await queryGraphQL(`
+			mutation ($id: ID!){
+				deleteScriptAnswer(id:$id){
+					id
+				}
+			}
+		`,
+		{
+			id:props.answer.id,
+		});
+		props.fetchData();
+	}
+	return (<div> <textarea value={answerText} onChange={(ev)=>{setAnswerText(ev.target.value)}}/>
+		<br/>{needsSave&&(
 			<button onClick={()=>{
 				save();
 			}}>Save</button>
 		)}
-		<textarea value={answerText} onChange={(ev)=>{setAnswerText(ev.target.value)}}/>
+		<button onClick={deleteAnswer}>Delete</button>
+	
 	</div>);
 }
 
