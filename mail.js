@@ -31,7 +31,7 @@ async function createTransport(){
 
 
 
-async function email(transport,address,subject,text){
+async function email(transport,address,subject,text,html){
 	
 	return await transport.sendMail({
 		from:process.env.EMAILADDRESS,
@@ -41,7 +41,7 @@ async function email(transport,address,subject,text){
 		},
 		subject:subject,
 		text:text,
-		//html:html
+		html:html
 	});
 
 

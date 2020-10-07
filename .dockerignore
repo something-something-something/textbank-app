@@ -1,2 +1,5 @@
 node_modules
 chat/.next
+node.env
+docker-compose.yml
+.git

@@ -47,14 +47,15 @@ function InviteUserForm(props){
 
 	const sendInvite=async ()=>{
 		let res=await queryGraphQL(`
-			mutation($email:String!){
-				sendInviteEmail(email:$email){
+			mutation($email:String!,$role:String!){
+				sendInviteEmail(email:$email,role:$role){
 					success
 				}
 			}
 		`,
 		{
-			email:email
+			email:email,
+			role:'volunteer'
 		});
 		console.log(res)
 		if(res.data.sendInviteEmail.success){

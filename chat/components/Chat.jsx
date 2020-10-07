@@ -393,6 +393,7 @@ function ScriptLine(props){
 		if(props.user.nickName!==null||props.user.nickName!==''){
 			replacedText=replacedText.replaceAll('{UserNickName}',props.user.nickName);
 			replacedText=replacedText.replaceAll('{VolunteerName}',props.user.nickName);
+			replacedText=replacedText.replaceAll('{SenderName}',props.user.nickName);
 		}
 
 		return replacedText

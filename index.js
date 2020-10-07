@@ -10,7 +10,8 @@ const {AuthUserIsAdmin,AuthUserIsVolunteer,AuthUserIsAdminOrVolunteer,AuthUserIs
 const crypto=require('crypto');
 const bycrypt=require('bcryptjs');
 const nodemailer=require('nodemailer');
-
+const expressSession=require('express-session');
+const MongoDBStore=require('connect-mongodb-session')(expressSession)
 const mail=require('./mail');
 
 
@@ -23,8 +24,15 @@ function serverContext(keystone){
 const keystone=new Keystone({
 	adapter: new MongooseAdapter({mongoUri:process.env.URLMONGO}),
 	cookie:{
+		secure:process.env.NODE_ENV === 'production',
+		maxAge: 1000 * 60 * 60 * 24 * 30,
 		sameSite:'strict'
 	},
+	cookieSecret:process.env.COOKIESECRET,
+	sessionStore:new MongoDBStore({
+		uri:process.env.MONGOSESSIONURI,
+		collection:process.env.MONGOSESSIONCOLLECTION
+	}),
 	onConnect:()=>{
 		console.log('connected');
 
@@ -32,15 +40,36 @@ const keystone=new Keystone({
 			let users=await getItems({keystone,listKey:'User',returnFields:'id'});
 			if(users.length===0){
 				console.log('adding user');
-				await createItem({
-					keystone,
-					listKey:'User',
-					item:{
-						email:'admin',
-						password:'password',
+				// await createItem({
+				// 	keystone,
+				// 	listKey:'User',
+				// 	item:{
+				// 		email:'admin',
+				// 		password:'password',
+				// 		role:'admin'
+				// 	}
+				// })
+
+				let res=keystone.executeGraphQL({
+					query:`
+						mutation($email:String!,$role:String!){
+							sendInviteEmail(email:$email,role:$role){
+								success
+							}
+						}
+					`,
+					variables:{
+						email:process.env.ADMININVITEEMAIL,
 						role:'admin'
-					}
-				})
+					},
+					context:keystone.createContext({skipAccessControl:true})
+				});
+				if(res.data.sendInviteEmail.success){
+					console.log('email sent')
+				}
+				else{
+					console.log('email failed')
+				}
 			}
 		};
 		addUserIfNone();
@@ -667,6 +696,16 @@ keystone.createList('EmailInvite',{
 		dateCreated:{
 			type:DateTimeUtc,
 			isRequired:true,
+		},
+		role:{
+			type:Select,
+			options:[
+				{value:'none',label:'None'},
+				{value:'volunteer',label:'Volunteer'},
+				{value:'admin',label:'Administrator'}
+			],
+			dataType:'enum',
+			defaultValue:'none',
 		}
 	}
 });
@@ -867,7 +906,7 @@ keystone.extendGraphQLSchema({
 			access:AuthUserHasArgContactForCustomSchema
 		},
 		{
-			schema:'sendInviteEmail(email:String!):sendEmailInviteOutput',
+			schema:'sendInviteEmail(email:String!,role:String!):sendEmailInviteOutput',
 			resolver:async (par,args,context,info,extra)=>{
 				try{
 
@@ -876,19 +915,25 @@ keystone.extendGraphQLSchema({
 					let inviteItem=await createItem({keystone,listKey:'EmailInvite',item:{
 						email:args.email,
 						tokenHash:tokenHash,
-						dateCreated:(new Date()).toISOString()
+						dateCreated:(new Date()).toISOString(),
+						role:args.role
 
 					}});
 					console.log('creted in db');
 
-					console.log(token);
-					console.log(tokenHash);
+					//console.log(token);
+					//console.log(tokenHash);
 					let t=await mail.createTransport();
 					let email=await mail.email(t,args.email,'Textbank Invite',`
 
 					your login email will be ${args.email}
-					token ${token}
+					${process.env.TEXTBANKURL}invite?token=${token}
 					
+					`,
+					`
+					your login email will be ${args.email}
+					<a href="${process.env.TEXTBANKURL}invite?token=${token}">Join Here with your password</a>
+					or go here: ${process.env.TEXTBANKURL}invite?token=${token}
 					`);
 					console.log('email sent')
 					if(process.env.STMPSERVERHOST==='smtp.ethereal.email'){
@@ -917,7 +962,7 @@ keystone.extendGraphQLSchema({
 			schema:'createVolunteerFromToken(token:String!,password:String!):createVolunteerFromTokenOutput',
 			resolver:async (par,args,context,info,extra)=>{
 				try{
-					let invites=await getItems({keystone,listKey:'EmailInvite',returnFields:'id tokenHash email dateCreated'});
+					let invites=await getItems({keystone,listKey:'EmailInvite',returnFields:'id tokenHash email dateCreated role'});
 					let validInvites= invites.filter((el)=>{
 						let dc=(new Date(el.dateCreated)).getTime();
 						let bcRes=bycrypt.compareSync(args.token,el.tokenHash);
@@ -933,7 +978,7 @@ keystone.extendGraphQLSchema({
 						await createItem({keystone,listKey:'User',returnFields:'id',item:{
 							email:theInvite.email,
 							password:args.password,
-							role:'volunteer'
+							role:theInvite.role
 						}});
 						return {
 							success:true
@@ -972,5 +1017,8 @@ module.exports={
 	apps:[
 		new GraphQLApp(),
 		new NextApp({dir:'chat'})
-	]
+	],
+	configureExpress:(app)=>{
+		app.set('trust proxy',1);
+	}
 }
