@@ -1,3 +1,4 @@
+'use strict';
 const {Keystone}=require('@keystonejs/keystone');
 const {MongooseAdapter}=require('@keystonejs/adapter-mongoose');
 const {GraphQLApp}=require('@keystonejs/app-graphql');
@@ -13,7 +14,7 @@ const nodemailer=require('nodemailer');
 const expressSession=require('express-session');
 const MongoDBStore=require('connect-mongodb-session')(expressSession)
 const mail=require('./mail');
-
+const {getTexts}=require('./text')
 
 
 function serverContext(keystone){ 
@@ -37,99 +38,68 @@ const keystone=new Keystone({
 		console.log('connected');
 
 		const addUserIfNone=async()=>{
-			let users=await getItems({keystone,listKey:'User',returnFields:'id'});
-			if(users.length===0){
-				console.log('adding user');
-				// await createItem({
-				// 	keystone,
-				// 	listKey:'User',
-				// 	item:{
-				// 		email:'admin',
-				// 		password:'password',
-				// 		role:'admin'
-				// 	}
-				// })
+			try{
+				let users=await getItems({keystone,listKey:'User',returnFields:'id'});
+				if(users.length===0){
+					console.log('adding user');
+					// await createItem({
+					// 	keystone,
+					// 	listKey:'User',
+					// 	item:{
+					// 		email:'admin',
+					// 		password:'password',
+					// 		role:'admin'
+					// 	}
+					// })
 
-				let res=keystone.executeGraphQL({
-					query:`
-						mutation($email:String!,$role:String!){
-							sendInviteEmail(email:$email,role:$role){
-								success
+					let res=keystone.executeGraphQL({
+						query:`
+							mutation($email:String!,$role:String!){
+								sendInviteEmail(email:$email,role:$role){
+									success
+								}
 							}
-						}
-					`,
-					variables:{
-						email:process.env.ADMININVITEEMAIL,
-						role:'admin'
-					},
-					context:keystone.createContext({skipAccessControl:true})
-				});
-				if(res.data.sendInviteEmail.success){
-					console.log('email sent')
-				}
-				else{
-					console.log('email failed')
-				}
-			}
-		};
-		addUserIfNone();
-		setInterval(async ()=>{
-			console.log('Texts');
-			let receivedMessages=await twilioClient.messages.list({to:process.env.TWILNUMBER});
-
-			let storedReceivedMesages=await getItems({keystone,listKey:'ReceivedText',returnFields:'id, content, from, twilID'});
-
-			for(let rm of receivedMessages){
-				//console.log(rm)
-				if(!storedReceivedMesages.some((el)=>{return el.twilID===rm.sid})){
-					createItem({
-						keystone,
-						listKey:'ReceivedText',
-						item:{
-							content:rm.body,
-							from:rm.from,
-							twilID:rm.sid,
-							date:(new Date(rm.dateSent)).toISOString()
+						`,
+						variables:{
+							email:process.env.ADMININVITEEMAIL,
+							role:'admin'
 						},
+						context:keystone.createContext({skipAccessControl:true})
 					});
-				}
-
-			}
-			//console.log(receivedMessages);
-
-
-			let sentMessages=await twilioClient.messages.list({from:process.env.TWILNUMBER});
-			let storedSentMesages=await getItems({keystone,listKey:'SentText',returnFields:'id, content, to, status, twilID'});
-			for(let sm of sentMessages){
-				//console.log(sm)
-				if(!storedSentMesages.some((el)=>{return el.twilID ===sm.sid})){
-					createItem({
-						keystone,
-						listKey:'SentText',
-						item:{
-							content:sm.body,
-							to:sm.to,
-							status:sm.status,
-							twilID:sm.sid,
-							date:(new Date(sm.dateCreated)).toISOString()
-						},
-					});
-				}
-				else{
-					let storedMesage=storedSentMesages.find((el)=>{return el.twilID===sm.sid})
-					if(storedMesage.status!==sm.status||storedMesage.content!==sm.body){
-						updateItem({
-							keystone,
-							listKey:'SentText',
-							item:{id:storedMesage.id,data:{status:sm.status,content:sm.body}},
-						})
+					if(res.data.sendInviteEmail.success){
+						console.log('email sent')
+					}
+					else{
+						console.log('email failed')
 					}
 				}
 			}
+			catch(err){
+				console.log('error sending invite email');
+			}
+		};
 
+		addUserIfNone();
+		getTexts(keystone,{});
+		setInterval(async ()=>{
+			let currTime=(new Date()).getTime(); 
+			getTexts(keystone, {
+				dateAfter:new Date(currTime - ( 1000*60*2))
+			});
 
 
 		},15*1000);
+
+		setInterval(async ()=>{
+			console.log('sync old');
+			
+			let currTime=(new Date()).getTime(); 
+			getTexts(keystone, {
+				dateBefore:new Date(currTime - (1000*60*60))
+			});
+
+
+		},1000*60*5);
 	}
 });
 
@@ -563,7 +533,7 @@ keystone.createList('Contact',{
 					let sent=await getItems({keystone,listKey:'SentText',returnFields:'date',where:{to:item.phone}});
 					let received=await getItems({keystone,listKey:'ReceivedText',returnFields:'date',where:{from:item.phone}});
 					let both=sent.concat(received);
-					console.log(both);
+					//console.log(both);
 					both=both.sort((a,b)=>{
 						return (new Date(b.date)).getTime() - (new Date(a.date)).getTime();
 					});
@@ -932,8 +902,8 @@ keystone.extendGraphQLSchema({
 					`,
 					`
 					your login email will be ${args.email}
-					<a href="${process.env.TEXTBANKURL}invite?token=${token}">Join Here with your password</a>
-					or go here: ${process.env.TEXTBANKURL}invite?token=${token}
+					<a href="${process.env.TEXTBANKURL}invite?token=${encodeURIComponent( token)}">Join Here with your password</a>
+					or go here: ${process.env.TEXTBANKURL}invite?token=${encodeURIComponent(token)}
 					`);
 					console.log('email sent')
 					if(process.env.STMPSERVERHOST==='smtp.ethereal.email'){
@@ -973,7 +943,7 @@ keystone.extendGraphQLSchema({
 					});
 
 					if(validInvites.length>0){
-						theInvite=validInvites[0];
+						let theInvite=validInvites[0];
 						await deleteItem({keystone,listKey:'EmailInvite',itemId:theInvite.id});
 						await createItem({keystone,listKey:'User',returnFields:'id',item:{
 							email:theInvite.email,

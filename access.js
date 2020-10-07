@@ -1,4 +1,4 @@
-
+'use strict';
 function AuthUserIsAdmin({authentication}){
 	if(authentication.item!==undefined&&authentication.item.role==='admin'){
 		return true;
