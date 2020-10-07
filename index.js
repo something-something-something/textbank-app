@@ -14,7 +14,9 @@ const nodemailer=require('nodemailer');
 const expressSession=require('express-session');
 const MongoDBStore=require('connect-mongodb-session')(expressSession)
 const mail=require('./mail');
-const {getTexts}=require('./text')
+const {getTexts}=require('./text');
+const helmet = require('helmet');
+
 
 
 function serverContext(keystone){ 
@@ -730,6 +732,7 @@ keystone.createList('User',{
 		},
 		nickName:{
 			type:Text,
+			defaultValue:'Your Nick Name',
 		},
 		contacts:{
 			type:Relationship,
@@ -989,6 +992,20 @@ module.exports={
 		new NextApp({dir:'chat'})
 	],
 	configureExpress:(app)=>{
+		app.use(helmet.contentSecurityPolicy({
+			directives:{
+				defaultSrc:["'self'","'unsafe-eval'","'unsafe-inline'"],
+				frameAncestors:["'self'"]
+			}
+		}));
+		app.use(helmet.noSniff());
+		app.use(helmet.frameguard())
+		if(process.env.NODE_ENV==='production'){
+			app.use(helmet.hsts({
+				maxAge:60
+			}));
+		}
+		
 		app.set('trust proxy',1);
 	}
 }
