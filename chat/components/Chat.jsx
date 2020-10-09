@@ -456,7 +456,8 @@ function ScriptLine(props){
 		<button onClick={()=>{
 			props.setTextToSend(fillReplacements(lineText));
 		}}>Text</button>
-		<ScriptQuestions contact={props.contact} questions={props.line.questions} fetchData={props.fetchData}/>
+		{props.line.questions.length>0&&<ScriptQuestions contact={props.contact} questions={props.line.questions} fetchData={props.fetchData}/>}
+		
 		<div style={{marginLeft:'2rem'}}>
 			{props.lines.filter((el)=>{
 				return el.parent!==null&&el.parent.id===props.line.id;
