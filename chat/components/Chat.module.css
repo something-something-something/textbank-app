@@ -6,7 +6,7 @@
 				"cbar script conv"
 				"cbar script textbox";
 	grid-template-columns:10rem 1fr 50%;
-	grid-template-rows:5vh 83vh 10vh ;
+	grid-template-rows:5vh 85vh 10vh ;
 	row-gap:0px;
 	overflow:hidden;
 }

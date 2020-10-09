@@ -6,7 +6,14 @@ const DynamicChat=dynamic(async ()=>{
 
 
 function ChatPage(){
-	return 	<DynamicChat/>
+	return 	(<>
+		<style jsx global>{`
+			body{
+				margin:0
+			}
+		`}</style>
+		<DynamicChat/>
+	</>);
 }
 
 export default ChatPage;
