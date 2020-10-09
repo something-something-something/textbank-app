@@ -228,6 +228,16 @@ keystone.createList('ScriptQuestion',{
 			type:Relationship,
 			ref:'ScriptAnswer.question',
 			many:true
+		},
+		scriptLines:{
+			type:Relationship,
+			ref:'ScriptLine.questions',
+			many:true,
+		},
+		suggestedOptions:{
+			type:Text,
+			defaultValue:''
+
 		}
 	}
 });
@@ -403,6 +413,11 @@ keystone.createList('ScriptLine',{
 			ref:'ScriptLine.children',
 			
 			
+		},
+		questions:{
+			type:Relationship,
+			ref:'ScriptQuestion.scriptLines',
+			many:true
 		},
 		children:{
 			type:Relationship,
@@ -997,17 +1012,19 @@ module.exports={
 		new NextApp({dir:'chat'})
 	],
 	configureExpress:(app)=>{
-		app.use(helmet.contentSecurityPolicy({
-			directives:{
-				defaultSrc:["'self'","'unsafe-eval'","'unsafe-inline'"],
-				frameAncestors:["'self'"]
-			}
-		}));
+		
 		app.use(helmet.noSniff());
 		app.use(helmet.frameguard())
 		if(process.env.NODE_ENV==='production'){
 			app.use(helmet.hsts({
 				maxAge:60
+			}));
+
+			app.use(helmet.contentSecurityPolicy({
+				directives:{
+					defaultSrc:["'self'","'unsafe-eval'","'unsafe-inline'"],
+					frameAncestors:["'self'"]
+				}
 			}));
 		}
 		

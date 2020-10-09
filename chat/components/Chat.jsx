@@ -116,12 +116,13 @@ export function Chat(){
 						children{
 							id
 						}
+						questions{
+							id
+							questionText
+							suggestedOptions
+						}
 					}
-					questions{
-						id
-						questionText
-
-					}
+					
 				 	selectedContact: contacts(where:{id:$contact})	@include(if: $contactSelected){
 						id
 						name
@@ -248,7 +249,6 @@ export function Chat(){
 		{results.Script.selectedContact!==undefined&&(
 			<>
 			<Script lines={results.Script.scriptLines} setTextToSend={setTextToSend} contact={results.Script.selectedContact[0]} user={results.authenticatedUser} textReplacmentData={textReplacmentData} fetchData={fetchData}/>
-			<ScriptQuestions questions={results.Script.questions} contact={results.Script.selectedContact[0]} fetchData={fetchData}/>
 			<Conversation sent={results.Script.selectedContact[0].sentTexts} received={results.Script.selectedContact[0].receivedTexts} sendText={sendText} fetchData={fetchData}/>
 
 			<TextBox textToSend={textToSend} setTextToSend={setTextToSend} sendText={sendText} fetchData={fetchData} contact={results.Script.selectedContact[0]}/>
@@ -365,59 +365,6 @@ function Script(props){
 		props.fetchData();
 	};
 
-	return (<div style={{gridArea:'script',overflow:'auto'}}> 
-		Language:<select value={props.contact.language} onChange={(ev)=>{switchLanguage(ev.target.value)}}>
-			<option value="en">English</option>
-			<option value="es">Spanish</option>
-		</select>
-		
-		Your nickname:<input value={nickName} onChange={(ev)=>{setNickName(ev.target.value)}}/>
-		{nickName!==props.user.nickName&&(<button onClick={updateNickName}>Save</button>)}
-		{props.lines.filter((el)=>{
-			return el.parent===null;
-		}).sort((a,b)=>{
-			return a.order-b.order;
-		}).map((el)=>{
-			return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend}  contact={props.contact} user={props.user} />
-		})}
-	</div>);
-}
-function ScriptLine(props){
-
-	let fillReplacements=(text)=>{
-		let replacedText=text;
-		if(props.contact.firstName!==undefined){
-			replacedText=replacedText.replaceAll('{ContactFirstName}',props.contact.firstName);
-			replacedText=replacedText.replaceAll('{VoterName}',props.contact.firstName);
-		}
-		if(props.user.nickName!==null||props.user.nickName!==''){
-			replacedText=replacedText.replaceAll('{UserNickName}',props.user.nickName);
-			replacedText=replacedText.replaceAll('{VolunteerName}',props.user.nickName);
-			replacedText=replacedText.replaceAll('{SenderName}',props.user.nickName);
-		}
-
-		return replacedText
-	}
-	let lineText=props.contact.language==='en'?props.line.en:props.line.es;
-
-	return (<div>
-		<b>{props.line.instructions}</b>
-		<div>{fillReplacements(lineText)}</div>
-		<button onClick={()=>{
-			props.setTextToSend(fillReplacements(lineText));
-		}}>Text</button>
-		<div style={{marginLeft:'2rem'}}>
-			{props.lines.filter((el)=>{
-				return el.parent!==null&&el.parent.id===props.line.id;
-			}).sort((a,b)=>{
-				return a.order-b.order;
-			}).map((el)=>{
-				return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend} contact={props.contact} user={props.user} />
-			})}
-		</div>
-	</div>);
-}
-function ScriptQuestions(props){
 	const toggleDoNotContact=async()=>{
 		await queryGraphQL(`
 			mutation($contact:ID!){
@@ -450,8 +397,13 @@ function ScriptQuestions(props){
 	}
 
 
-	return (<div style={{gridArea:'questions',overflow:'auto'}}> 
-		Questions<br/>
+
+
+	return (<div style={{gridArea:'script',overflow:'auto'}}> 
+
+		Your nickname:<input value={nickName} onChange={(ev)=>{setNickName(ev.target.value)}}/>
+		{nickName!==props.user.nickName&&(<button onClick={updateNickName}>Save</button>)}
+		<br/><br/>
 		{props.contact.completed?'COMPLETED!':'INCOMPLETE'}
 		<button onClick={toggleCompleted}>{props.contact.completed?'Mark incomplete':'mark complete'}</button>
 		<div>
@@ -461,11 +413,77 @@ function ScriptQuestions(props){
 			{props.contact.doNotContact?'Remove From Do Not Contact':'Add to Do Not Contact'}
 			</button> 
 		</div>
+
+		<br/>
+		Language:<select value={props.contact.language} onChange={(ev)=>{switchLanguage(ev.target.value)}}>
+			<option value="en">English</option>
+			<option value="es">Spanish</option>
+		</select>
+		
+		<br/>
+		<br/>
+
+		{props.lines.filter((el)=>{
+			return el.parent===null;
+		}).sort((a,b)=>{
+			return a.order-b.order;
+		}).map((el)=>{
+			return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend}  contact={props.contact} user={props.user} fetchData={props.fetchData}/>
+		})}
+	</div>);
+}
+function ScriptLine(props){
+
+	let fillReplacements=(text)=>{
+		let replacedText=text;
+		if(props.contact.firstName!==undefined){
+			replacedText=replacedText.replaceAll('{ContactFirstName}',props.contact.firstName);
+			replacedText=replacedText.replaceAll('{VoterName}',props.contact.firstName);
+		}
+		if(props.user.nickName!==null||props.user.nickName!==''){
+			replacedText=replacedText.replaceAll('{UserNickName}',props.user.nickName);
+			replacedText=replacedText.replaceAll('{VolunteerName}',props.user.nickName);
+			replacedText=replacedText.replaceAll('{SenderName}',props.user.nickName);
+		}
+
+		return replacedText
+	}
+	let lineText=props.contact.language==='en'?props.line.en:props.line.es;
+
+	return (<div>
+		<b>{props.line.instructions}</b>
+		<div>{fillReplacements(lineText)}</div>
+		<button onClick={()=>{
+			props.setTextToSend(fillReplacements(lineText));
+		}}>Text</button>
+		<ScriptQuestions contact={props.contact} questions={props.line.questions} fetchData={props.fetchData}/>
+		<div style={{marginLeft:'2rem'}}>
+			{props.lines.filter((el)=>{
+				return el.parent!==null&&el.parent.id===props.line.id;
+			}).sort((a,b)=>{
+				return a.order-b.order;
+			}).map((el)=>{
+				return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend} contact={props.contact} user={props.user} fetchData={props.fetchData}/>
+			})}
+		</div>
+	</div>);
+}
+function ScriptQuestions(props){
+	
+
+	return (<div style={{margin:'1rem'}}> 
+		Questions<br/>
+		
 		
 		{props.questions.map((el)=>{
 			return <div key={el.id}>
 				{el.questionText}
-				<ScriptQuestionNewAnswer question={el} contact={props.contact} fetchData={props.fetchData}/>
+				{el.suggestedOptions.split(',').filter((op)=>{
+					return op.trim()!=='';
+				}).map((op)=>{
+					return <ScriptQuestionNewAnswer key={op} question={el} contact={props.contact} fetchData={props.fetchData} answerText={op.trim()}/>	
+				})}
+				<ScriptQuestionNewAnswer question={el} contact={props.contact} fetchData={props.fetchData} answerText=""/>
 				{props.contact.answers.filter((ans)=>{
 					return ans.question.id===el.id;
 				}).map((ans)=>{
@@ -481,7 +499,7 @@ function ScriptQuestions(props){
 function ScriptQuestionNewAnswer(props){
 	let makeAnswer=async ()=>{
 		await queryGraphQL(`
-			mutation ($contact: ID!,$question:ID!){
+			mutation ($contact: ID!,$question:ID!,$text:String!){
 				createScriptAnswer(data:{
 					contact:{
 						connect:{
@@ -492,7 +510,8 @@ function ScriptQuestionNewAnswer(props){
 						connect:{
 							id:$question
 						}
-					}
+					},
+					answerText:$text
 				}){
 					id
 				}
@@ -500,14 +519,16 @@ function ScriptQuestionNewAnswer(props){
 		`,
 		{
 			contact:props.contact.id,
-			question:props.question.id
+			question:props.question.id,
+			text:props.answerText
 		});
 		props.fetchData();
 	}
-	return (<button onClick={()=>{makeAnswer()}}>New Answer</button>);
+return (<button onClick={()=>{makeAnswer()}}>{props.answerText===''?'Custom Answer':props.answerText}</button>);
 }
 function ScriptQuestionAnswer(props){
-	const [answerText,setAnswerText]=useState(props.answer.answerText)
+	const [answerText,setAnswerText]=useState(props.answer.answerText);
+	const [editMode,setEditMode]=useState(false)
 	let needsSave=false;
 	if(answerText!==props.answer.answerText){
 		needsSave=true;
@@ -527,6 +548,7 @@ function ScriptQuestionAnswer(props){
 			id:props.answer.id,
 			text:answerText
 		});
+		setEditMode(false);
 		props.fetchData();
 	}
 
@@ -543,12 +565,29 @@ function ScriptQuestionAnswer(props){
 		});
 		props.fetchData();
 	}
-	return (<div> <textarea value={answerText} onChange={(ev)=>{setAnswerText(ev.target.value)}}/>
-		<br/>{needsSave&&(
-			<button onClick={()=>{
-				save();
-			}}>Save</button>
-		)}
+	return (<div> 
+		{!editMode&&(<>
+			{props.answer.answerText!==''
+			?
+				<>{props.answer.answerText}</>
+			:
+				<b>Click Edit to provide an answer</b>
+			}
+			</>)
+			
+		}
+		{editMode&&<>
+			<textarea value={answerText} onChange={(ev)=>{setAnswerText(ev.target.value)}}/>
+			<br/>{needsSave&&(
+				<button onClick={()=>{
+					save();
+				}}>Save</button>
+			)}
+		</>}
+		<button onClick={()=>{
+			setAnswerText(props.answer.answerText);
+			setEditMode(!editMode); 
+		}}>{editMode?'Cancel':'edit'}</button>
 		<button onClick={deleteAnswer}>Delete</button>
 	
 	</div>);
@@ -587,6 +626,7 @@ function Message(props){
 			padding:'2rem',
 			borderRadius:'2rem',
 			width:'max-content',
+			maxWidth:'50%',
 			opacity:opacity,
 			transition:'opacity 0.5s linear'
 		}

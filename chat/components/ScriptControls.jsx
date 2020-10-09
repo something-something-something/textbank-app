@@ -15,6 +15,7 @@ export function ScriptControls(props){
 						id
 						headerName
 						questionText
+						suggestedOptions
 					}
 					scriptLines{
 						id,
@@ -30,6 +31,10 @@ export function ScriptControls(props){
 						}
 						children{
 							id
+						}
+						questions{
+							id
+							headerName
 						}
 					},
 					contacts{
@@ -265,7 +270,7 @@ function ScriptQuestions(props){
 function ScriptQuestionEditor(props){
 	const [questionText,setQuestionText]=useState(props.question.questionText);
 	const [header,setHeader]=useState(props.question.headerName);
-
+	const [suggestedOptions,setSuggestedOptions] =useState(props.question.suggestedOptions);
 
 	let needsSave=false;
 	if(questionText!==props.question.questionText){
@@ -274,13 +279,17 @@ function ScriptQuestionEditor(props){
 	if(header!==props.question.headerName){
 		needsSave=true;
 	}
+	if(suggestedOptions!==props.question.suggestedOptions){
+		needsSave=true;
+	}
 
 	const save=async ()=>{
 		await queryGraphQL(`
-			mutation($qID:ID!,$headerName:String!,$questionText:String!){
+			mutation($qID:ID!,$headerName:String!,$questionText:String!,$options:String!){
 				updateScriptQuestion(id:$qID,data:{
 					headerName:$headerName,
-					questionText:$questionText
+					questionText:$questionText,
+					suggestedOptions:$options
 				}){
 					id
 				}
@@ -289,7 +298,8 @@ function ScriptQuestionEditor(props){
 		`,{
 			qID:props.question.id,
 			headerName:header,
-			questionText:questionText
+			questionText:questionText,
+			options:suggestedOptions
 		});
 		props.fetchData();
 	}
@@ -308,7 +318,7 @@ function ScriptQuestionEditor(props){
 		props.fetchData();
 	};
 
-	return (<div>
+	return (<div style={{margin:'1rem',borderColor:'rgb(0,0,0)',borderWidth:'1px',borderStyle:'solid'}}>
 			{props.question.headerName}
 			{needsSave&&(<button onClick={()=>{
 				save();
@@ -320,7 +330,10 @@ function ScriptQuestionEditor(props){
 			}}/><br/>
 			Header:<input type="text" value={header} onChange={(ev)=>{
 				setHeader(ev.target.value);
-			}}/>
+			}}/><br/>
+			Suggested Options:<br/><textarea value={suggestedOptions} onChange={(ev)=>{
+				setSuggestedOptions(ev.target.value);
+			}}/><br/>
 			
 	</div>);
 }
@@ -525,6 +538,8 @@ function ScriptLineEditor(props){
 		<div>English:<br/><textarea value={english} onChange={(ev)=>{updateLine(id,instructions,ev.target.value,spanish)}}/></div>
 		<div>Spanish:<br/><textarea value={spanish} onChange={(ev)=>{updateLine(id,instructions,english,ev.target.value)}}/></div>
 		<button onClick={()=>{deleteLine(id)}}>Delete Line</button>
+		<ScriptLineQuestions script={props.script} line={props.line} fetchData={props.fetchData}/>
+
 		{siblings.length>0&&(<div>
 			Switch Position With
 			<select value="" onChange={(ev)=>{
@@ -558,6 +573,75 @@ function ScriptLineEditor(props){
 			}
 		</div>
 		order {props.line.order}
+	</div>);
+}
+
+function ScriptLineQuestions(props){
+	const addQuestion=async (qid)=>{
+
+		await queryGraphQL(`
+			mutation($qID:ID!, $slID:ID!){
+				updateScriptLine(id:$slID,data:{
+					questions:{
+						connect:{
+							id:$qID
+						}
+					}
+				}){
+					id
+				}
+			}
+		`,{
+			qID:qid,
+			slID:props.line.id
+		});
+		props.fetchData();
+	}
+
+	const removeQuestion=async (qid)=>{
+		await queryGraphQL(`
+			mutation($qID:ID!, $slID:ID!){
+				updateScriptLine(id:$slID,data:{
+					questions:{
+						disconnect:{
+							id:$qID
+						}
+					}
+				}){
+					id
+				}
+			}
+		`,{
+			qID:qid,
+			slID:props.line.id
+		});
+		props.fetchData();
+	}
+
+
+	return (<div>
+		questions:{props.line.questions.map((q)=>{
+			return (<div key={q.id}>
+				{q.headerName}<button onClick={()=>{removeQuestion(q.id)}}>remove</button>
+
+			</div>);
+		})}
+		<br/>
+		Add question
+		<select value='' onChange={(ev)=>{ 
+			if(ev.target.value!==''){
+				addQuestion(ev.target.value);
+			}
+		}}>
+			<option value=''>Add Question</option>
+			{props.script.questions.filter((q)=>{
+				return !props.line.questions.some((lq)=>{
+					return q.id===lq.id;
+				})	
+			}).map((q)=>{
+				return (<option key={q.id} value={q.id}>{q.headerName}</option>);
+			})}
+		</select>
 	</div>);
 }
 

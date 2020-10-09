@@ -3,9 +3,9 @@
 	display:grid;
 	grid-template-areas:
 				"cbar header header"
-				"cbar script questions"
-				"cbar conv conv"
-				"cbar textbox textbox";
+				"cbar script conv"
+				"cbar script conv"
+				"cbar script textbox";
 	grid-template-columns:10rem 1fr 1fr;
 	grid-template-rows:5vh 35vh 45vh 10vh;
 	row-gap:0px;
