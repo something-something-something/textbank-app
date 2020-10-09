@@ -622,7 +622,7 @@ function Message(props){
 		{
 			margin:margin, 
 			backgroundColor:bgColor,
-			maxWidth:'70vw',
+			// maxWidth:'70vw',
 			padding:'2rem',
 			borderRadius:'2rem',
 			width:'max-content',
@@ -644,7 +644,7 @@ function TextBox(props){
 	}
 
 	return <div  style={{gridArea:'textbox',display:'flex'}}>
-			<textarea style={{maxWidth:'50vh',width:'80rem', marginLeft:'auto'}}
+			<textarea style={{maxWidth:'100%',width:'80rem', marginLeft:'auto'}}
 			value={props.textToSend} 
 			onChange={(ev)=>{
 				props.setTextToSend(ev.target.value);
