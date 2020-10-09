@@ -82,6 +82,7 @@ function ScriptList(props){
 		return (<details key={scr.id}>
 			<summary>{scr.name}</summary>
 			<DeleteScriptButton script={scr} fetchData={props.fetchData}/>
+			<a href={"/export/contactanswers?script="+encodeURIComponent(scr.id)}>Export</a>
 			<ScriptEditor script={scr} fetchData={props.fetchData}/>
 			<ScriptUsers script={scr} fetchData={props.fetchData} allUsers={props.allUsers}/>
 
@@ -292,11 +293,27 @@ function ScriptQuestionEditor(props){
 		});
 		props.fetchData();
 	}
+
+	const deleteQuestion=async()=>{
+		await queryGraphQL(`
+			mutation($qID:ID!){
+				deleteScriptQuestion(id:$qID){
+					id
+				}
+			}
+		
+		`,{
+			qID:props.question.id,
+		});
+		props.fetchData();
+	};
+
 	return (<div>
 			{props.question.headerName}
 			{needsSave&&(<button onClick={()=>{
 				save();
 			}}>Save</button>)}
+			<button onClick={deleteQuestion}>Delete</button>
 			<br/>
 			<textarea value={questionText} onChange={(ev)=>{
 				setQuestionText(ev.target.value);
