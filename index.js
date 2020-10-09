@@ -900,13 +900,18 @@ keystone.extendGraphQLSchema({
 					let email=await mail.email(t,args.email,'Textbank Invite',`
 
 					your login email will be ${args.email}
+					Email is case sensitive.
+					Join here:
 					${process.env.TEXTBANKURL}invite?token=${token}
 					
 					`,
 					`
-					your login email will be ${args.email}
-					<a href="${process.env.TEXTBANKURL}invite?token=${encodeURIComponent( token)}">Join Here with your password</a>
-					or go here: ${process.env.TEXTBANKURL}invite?token=${encodeURIComponent(token)}
+					Your login email will be ${args.email}<br>
+					Email is case sensitive.<br>
+					<a href="${process.env.TEXTBANKURL}invite?token=${encodeURIComponent( token)}">Join Here</a>
+					or copy and paste this address in the address bar: ${process.env.TEXTBANKURL}invite?token=${encodeURIComponent(token)}
+
+
 					`);
 					console.log('email sent')
 					if(process.env.STMPSERVERHOST==='smtp.ethereal.email'){
