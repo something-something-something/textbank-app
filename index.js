@@ -97,11 +97,11 @@ const keystone=new Keystone({
 			
 			let currTime=(new Date()).getTime(); 
 			getTexts(keystone, {
-				dateBefore:new Date(currTime - (1000*60*60))
+				dateBefore:new Date(currTime - (1000*60*30))
 			});
 
 
-		},1000*60*5);
+		},1000*60*30);
 	}
 });
 
