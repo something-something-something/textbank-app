@@ -1012,22 +1012,36 @@ module.exports={
 		new NextApp({dir:'chat'})
 	],
 	configureExpress:(app)=>{
-		
+			// app.use(helmet.contentSecurityPolicy({
+			// 	directives:{
+			// 		//defaultSrc:["'none'"],
+			// 		defaultSrc:[],
+			// 		frameAncestors:["'self'"]
+			// 	}
+			// }));
 		app.use(helmet.noSniff());
 		app.use(helmet.frameguard())
 		if(process.env.NODE_ENV==='production'){
 			app.use(helmet.hsts({
 				maxAge:60
 			}));
-
-			app.use(helmet.contentSecurityPolicy({
-				directives:{
-					defaultSrc:["'self'","'unsafe-eval'","'unsafe-inline'"],
-					frameAncestors:["'self'"]
+			app.use((req,res,next)=>{
+				if(req.secure){
+					next();
 				}
-			}));
+				else{
+					res.redirect('https://'+req.hostname+req.originalUrl);
+					res.send('Redirecting');
+				}
+			});
+			
 		}
-		
+		app.use((req,res,next)=>{
+			res.set('Content-Security-Policy',"frame-ancestors 'none';");
+			next();
+		});		
 		app.set('trust proxy',1);
+
+		
 	}
 }
