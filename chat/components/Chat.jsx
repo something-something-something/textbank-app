@@ -400,7 +400,6 @@ function Script(props){
 
 
 	return (<div style={{gridArea:'script',overflow:'auto'}}> 
-
 		Your nickname:<input value={nickName} onChange={(ev)=>{setNickName(ev.target.value)}}/>
 		{nickName!==props.user.nickName&&(<button onClick={updateNickName}>Save</button>)}
 		<br/><br/>
@@ -450,14 +449,17 @@ function ScriptLine(props){
 	}
 	let lineText=props.contact.language==='en'?props.line.en:props.line.es;
 
-	return (<div>
-		<b>{props.line.instructions}</b>
-		<div>{fillReplacements(lineText)}</div>
-		<button onClick={()=>{
-			props.setTextToSend(fillReplacements(lineText));
-		}}>Text</button>
-		{props.line.questions.length>0&&<ScriptQuestions contact={props.contact} questions={props.line.questions} fetchData={props.fetchData}/>}
+	return (<div >
+		<div className={styles.scriptLineContent} >
+			<b>{props.line.instructions}</b>
+			<div>{fillReplacements(lineText)}</div>
+			<button onClick={()=>{
+				props.setTextToSend(fillReplacements(lineText));
+			}}>Text</button>
+			{props.line.questions.length>0&&<ScriptQuestions contact={props.contact} questions={props.line.questions} fetchData={props.fetchData}/>}
 		
+		</div>
+
 		<div style={{marginLeft:'2rem'}}>
 			{props.lines.filter((el)=>{
 				return el.parent!==null&&el.parent.id===props.line.id;
@@ -472,13 +474,13 @@ function ScriptLine(props){
 function ScriptQuestions(props){
 	
 
-	return (<div style={{margin:'1rem'}}> 
-		Questions<br/>
+	return (<div className={styles.scriptQuestions}> 
+		{/* {props.questions.length>1?'Questions':'Question'}: */}
 		
 		
 		{props.questions.map((el)=>{
-			return <div key={el.id}>
-				{el.questionText}
+			return <div key={el.id} className={styles.scriptQuestion}>
+				<div  className={styles.scriptQuestionText}>{el.questionText}</div>
 				{el.suggestedOptions.split(',').filter((op)=>{
 					return op.trim()!=='';
 				}).map((op)=>{
@@ -566,7 +568,7 @@ function ScriptQuestionAnswer(props){
 		});
 		props.fetchData();
 	}
-	return (<div> 
+	return (<div className={styles.scriptAnswer}> 
 		{!editMode&&(<>
 			{props.answer.answerText!==''
 			?
