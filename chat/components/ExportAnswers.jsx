@@ -148,7 +148,7 @@ function AnswerTable(props){
 				{props.script.questions.map((el)=>{
 					return <td key={el.id}> {el.headerName}</td>;
 				})}
-				<td>Chat</td>
+				<td>View</td>
 			</tr>
 		</thead>
 		<tbody>
@@ -161,6 +161,10 @@ function AnswerTable(props){
 	</table>)
 }
 
+
+function vanUrlID(vanid){
+	return vanid.toString(16).split('').reverse().join('').toUpperCase()+ (vanid%17+10).toString(36).toUpperCase();
+}
 
 function AnswerRow(props){
 	return (<tr>
@@ -178,8 +182,12 @@ function AnswerRow(props){
 		})}
 		<td>
 			<a href={'/chat?script='+encodeURIComponent(props.script.id)+'&contact='+encodeURIComponent(props.contact.id)}>
-				View
+				Chat
 			</a> 
+			{ !Number.isNaN(parseInt(props.contact.vanid,10))&&(
+ 				<>  <a target="_blank" rel="noreferrer" href={'https://www.votebuilder.com/ContactsDetails.aspx?VANID=EID'+vanUrlID( parseInt(props.contact.vanid,10))}>Votebuilder</a></>
+			)}
+			
 		</td>
 	</tr>);
 }
