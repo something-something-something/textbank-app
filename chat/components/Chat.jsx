@@ -68,7 +68,11 @@ export function Chat(){
 					
 					});
 					if(text!==undefined){
-						new Notification(contact.name+': '+text.content);
+						let note=new Notification(contact.name+': '+text.content);
+						note.onclick=(ev)=>{
+							window.focus()
+							setContact(contact.id);
+						};
 					}
 						
 					
