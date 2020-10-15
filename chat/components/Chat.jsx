@@ -252,7 +252,7 @@ export function Chat(){
 		
 		{results.Script.selectedContact!==undefined&&(
 			<>
-			<Script lines={results.Script.scriptLines} setTextToSend={setTextToSend} contact={results.Script.selectedContact[0]} user={results.authenticatedUser} textReplacmentData={textReplacmentData} fetchData={fetchData}/>
+			<Script idPrefix='main-script' lines={results.Script.scriptLines} setTextToSend={setTextToSend} contact={results.Script.selectedContact[0]} user={results.authenticatedUser} textReplacmentData={textReplacmentData} fetchData={fetchData}/>
 			<Conversation sent={results.Script.selectedContact[0].sentTexts} received={results.Script.selectedContact[0].receivedTexts} sendText={sendText} fetchData={fetchData}/>
 
 			<TextBox textToSend={textToSend} setTextToSend={setTextToSend} sendText={sendText} fetchData={fetchData} contact={results.Script.selectedContact[0]}/>
@@ -430,8 +430,12 @@ function Script(props){
 			return el.parent===null;
 		}).sort((a,b)=>{
 			return a.order-b.order;
-		}).map((el)=>{
-			return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend}  contact={props.contact} user={props.user} fetchData={props.fetchData}/>
+		}).map((el,index,arr)=>{
+			let nextScriptLine=false;
+			if(index+1<arr.length){
+				nextScriptLine=arr[index+1];
+			}
+			return <ScriptLine idPrefix={props.idPrefix} key={el.id} line={el} nextScriptLine={nextScriptLine} lines={props.lines} setTextToSend={props.setTextToSend}  contact={props.contact} user={props.user} fetchData={props.fetchData}/>
 		})}
 	</div>);
 }
@@ -453,8 +457,14 @@ function ScriptLine(props){
 	}
 	let lineText=props.contact.language==='en'?props.line.en:props.line.es;
 
-	return (<div >
-		<div className={styles.scriptLineContent} >
+	let childrenLines=props.lines.filter((el)=>{
+			return el.parent!==null&&el.parent.id===props.line.id;
+		}).sort((a,b)=>{
+			return a.order-b.order;
+		});
+
+	return (<div>
+		<div id={props.idPrefix+'-scriptline-'+props.line.id} className={styles.scriptLineContent} >
 			<b>{props.line.instructions}</b>
 			<div>{fillReplacements(lineText)}</div>
 			<button onClick={()=>{
@@ -462,15 +472,19 @@ function ScriptLine(props){
 			}}>Text</button>
 			{props.line.questions.length>0&&<ScriptQuestions contact={props.contact} questions={props.line.questions} fetchData={props.fetchData}/>}
 		
+			{props.nextScriptLine&&childrenLines.length>0&&(
+				<>
+					If none of the folowing apply: <a href={'#'+props.idPrefix+'-scriptline-'+props.nextScriptLine.id}>Skip to {props.nextScriptLine.instructions}</a>
+				</>
+			)}
+			
+
+
 		</div>
 
 		<div style={{marginLeft:'2rem'}}>
-			{props.lines.filter((el)=>{
-				return el.parent!==null&&el.parent.id===props.line.id;
-			}).sort((a,b)=>{
-				return a.order-b.order;
-			}).map((el)=>{
-				return <ScriptLine key={el.id} line={el} lines={props.lines} setTextToSend={props.setTextToSend} contact={props.contact} user={props.user} fetchData={props.fetchData}/>
+			{childrenLines.map((el)=>{
+				return <ScriptLine key={el.id}  idPrefix={props.idPrefix} line={el} lines={props.lines} setTextToSend={props.setTextToSend} contact={props.contact} user={props.user} fetchData={props.fetchData}/>
 			})}
 		</div>
 	</div>);
