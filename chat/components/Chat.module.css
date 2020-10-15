@@ -90,6 +90,41 @@
 	border-color: rgb(42, 142, 224);
 	border-radius: 1rem;
 }
+.scriptLineTextButton{
+	display: block;
+	padding:1rem;
+	outline: none;
+	border:0;
+	font-size: 1rem;
+	border-radius: 0.5rem;
+	color: rgb(0, 0, 0);
+	text-align: center;
+	width: calc( 100% - 2rem);
+
+	margin:1rem;
+	background-color: rgb(99, 183, 252);
+}
+.scriptLineButton{
+	display: inline-block;
+	padding: 0.5rem;
+	border-radius: 0.5rem;
+	color: rgb(0, 0, 0);
+	text-align: center;
+	margin:0.5rem 0;
+	background-color: rgb(84, 240, 105);
+}
+
+
+.scriptLineSkipNext{
+	display: inline-block;
+	padding: 1rem;
+	border-radius: 1rem;
+	color: rgb(0, 0, 0);
+	text-decoration: none;
+	margin:0.5rem 0;
+	background-color: rgb(84, 204, 240);
+}
+
 .scriptQuestions{
 	
 	margin:1rem;
@@ -100,8 +135,10 @@
 	border-style: solid;
 	border-width: 0.05rem;
 	border-color: rgb(48, 224, 42);
-	margin:1rem 0;
+	margin:1rem 0 1rem auto;
 	padding: 1rem;
+	text-align: right;
+	width: max-content;
 
 }
 .scriptQuestionText{
@@ -111,4 +148,30 @@
 
 .scriptAnswer{
 	padding:1rem;
+}
+
+.sendTextButton{
+	background-color: rgb(84, 204, 240);
+	font-size: 1rem;
+}
+.sendTextButton::after{
+	content:'';
+	font-size: 0;
+	width: 0;
+	height: 0;
+	margin:0 0 0 1rem;
+	padding: 0 ;
+	display: inline;
+	border-style: solid;
+	border-color:transparent  transparent  transparent rgb(0, 0, 0) ;
+	border-width:  1rem 0rem 1rem 2.5rem ;
+}
+
+.contactCompleteReminder{
+	padding: 1rem;
+	border-color: red;
+	border-style: solid;
+	border-width: 0.5rem;
+	border-radius: 1rem;
+	margin:1rem;
 }

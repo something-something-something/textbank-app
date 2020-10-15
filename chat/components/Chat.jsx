@@ -383,22 +383,7 @@ function Script(props){
 
 		props.fetchData();
 	}
-	const toggleCompleted=async()=>{
-		await queryGraphQL(`
-		mutation($cid:ID!,$status:Boolean!){
-			updateContact(id:$cid,data:{
-				completed:$status
-			}){
-				id
-			}
-		}
-	`,{
-		cid:props.contact.id,
-		status:!props.contact.completed
-	});
-
-		props.fetchData();
-	}
+	
 
 
 
@@ -407,8 +392,7 @@ function Script(props){
 		Your nickname:<input value={nickName} onChange={(ev)=>{setNickName(ev.target.value)}}/>
 		{nickName!==props.user.nickName&&(<button onClick={updateNickName}>Save</button>)}
 		<br/><br/>
-		{props.contact.completed?'COMPLETED!':'INCOMPLETE'}
-		<button onClick={toggleCompleted}>{props.contact.completed?'Mark incomplete':'mark complete'}</button>
+		<ContactCompletedStatus contact={props.contact} fetchData={props.fetchData}/>
 		<div>
 			Has Contact requested not to be Contacted? 
 			<br/>{props.contact.doNotContact?'Yes':'No'}
@@ -437,8 +421,34 @@ function Script(props){
 			}
 			return <ScriptLine idPrefix={props.idPrefix} key={el.id} line={el} nextScriptLine={nextScriptLine} lines={props.lines} setTextToSend={props.setTextToSend}  contact={props.contact} user={props.user} fetchData={props.fetchData}/>
 		})}
+		<div className={styles.contactCompleteReminder}>
+			Don't forget to mark this contact Complete!
+			<ContactCompletedStatus contact={props.contact} fetchData={props.fetchData}/>
+		</div>
 	</div>);
 }
+
+function ContactCompletedStatus(props){
+	const toggleCompleted=async()=>{
+		await queryGraphQL(`
+		mutation($cid:ID!,$status:Boolean!){
+			updateContact(id:$cid,data:{
+				completed:$status
+			}){
+				id
+			}
+		}
+	`,{
+		cid:props.contact.id,
+		status:!props.contact.completed
+	});
+
+		props.fetchData();
+	}
+	return <div>{props.contact.completed?'COMPLETED!':'INCOMPLETE'}
+		<button onClick={toggleCompleted}>{props.contact.completed?'Mark incomplete':'mark complete'}</button></div>
+}
+
 function ScriptLine(props){
 
 	let fillReplacements=(text)=>{
@@ -467,14 +477,14 @@ function ScriptLine(props){
 		<div id={props.idPrefix+'-scriptline-'+props.line.id} className={styles.scriptLineContent} >
 			<b>{props.line.instructions}</b>
 			<div>{fillReplacements(lineText)}</div>
-			<button onClick={()=>{
+			<button className={styles.scriptLineTextButton} onClick={()=>{
 				props.setTextToSend(fillReplacements(lineText));
-			}}>Text</button>
+			}}>Text This Line</button>
 			{props.line.questions.length>0&&<ScriptQuestions contact={props.contact} questions={props.line.questions} fetchData={props.fetchData}/>}
 		
 			{props.nextScriptLine&&childrenLines.length>0&&(
 				<>
-					If none of the folowing apply: <a href={'#'+props.idPrefix+'-scriptline-'+props.nextScriptLine.id}>Skip to {props.nextScriptLine.instructions}</a>
+					If none of the following apply: <a className={styles.scriptLineSkipNext} href={'#'+props.idPrefix+'-scriptline-'+props.nextScriptLine.id}>Skip to {props.nextScriptLine.instructions}</a>
 				</>
 			)}
 			
@@ -482,7 +492,7 @@ function ScriptLine(props){
 
 		</div>
 
-		<div style={{marginLeft:'2rem'}}>
+		<div style={{marginLeft:'4rem'}}>
 			{childrenLines.map((el)=>{
 				return <ScriptLine key={el.id}  idPrefix={props.idPrefix} line={el} lines={props.lines} setTextToSend={props.setTextToSend} contact={props.contact} user={props.user} fetchData={props.fetchData}/>
 			})}
@@ -499,12 +509,15 @@ function ScriptQuestions(props){
 		{props.questions.map((el)=>{
 			return <div key={el.id} className={styles.scriptQuestion}>
 				<div  className={styles.scriptQuestionText}>{el.questionText}</div>
-				{el.suggestedOptions.split(',').filter((op)=>{
-					return op.trim()!=='';
-				}).map((op)=>{
-					return <ScriptQuestionNewAnswer key={op} question={el} contact={props.contact} fetchData={props.fetchData} answerText={op.trim()}/>	
-				})}
-				<ScriptQuestionNewAnswer question={el} contact={props.contact} fetchData={props.fetchData} answerText=""/>
+				<div style={{textAlign:'right'}}>
+					{el.suggestedOptions.split(',').filter((op)=>{
+						return op.trim()!=='';
+					}).map((op)=>{
+						return <ScriptQuestionNewAnswer key={op} question={el} contact={props.contact} fetchData={props.fetchData} answerText={op.trim()}/>	
+					})}
+					
+					<ScriptQuestionNewAnswer question={el} contact={props.contact} fetchData={props.fetchData} answerText=""/>
+				</div>
 				{props.contact.answers.filter((ans)=>{
 					return ans.question.id===el.id;
 				}).map((ans)=>{
@@ -545,7 +558,7 @@ function ScriptQuestionNewAnswer(props){
 		});
 		props.fetchData();
 	}
-return (<button onClick={()=>{makeAnswer()}}>{props.answerText===''?'Custom Answer':props.answerText}</button>);
+	return (<button className={styles.scriptLineButton} onClick={()=>{makeAnswer()}}>{props.answerText===''?'Custom Answer':props.answerText}</button>);
 }
 function ScriptQuestionAnswer(props){
 	const [answerText,setAnswerText]=useState(props.answer.answerText);
@@ -638,8 +651,14 @@ function Message(props){
 	let bgColor=props.message.TYPE==='SENT'?'rgb(200,255,255)':'rgb(200,255,200)';
 	let opacity=(props.message.TYPE==='SENT'&&props.message.status!=='delivered')?'0.5':'1'
 
+	
 	let date=new Date(props.message.date);
-	return <div title={date.toLocaleString()} style={
+	let titleText=date.toLocaleString();
+
+	if(props.message.TYPE==='SENT'){
+		titleText=titleText+' '+props.message.status;
+	}
+	return <div title={titleText} style={
 		{
 			margin:margin, 
 			backgroundColor:bgColor,
@@ -670,7 +689,7 @@ function TextBox(props){
 			onChange={(ev)=>{
 				props.setTextToSend(ev.target.value);
 			}}/>
-			<button style={{}} onClick={async ()=>{
+			<button className={styles.sendTextButton} onClick={async ()=>{
 				try{
 					let message=await props.sendText(props.textToSend);
 					console.log(message);
