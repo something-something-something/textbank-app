@@ -648,7 +648,7 @@ function Conversation(props){
 
 function Message(props){
 	let margin=props.message.TYPE==='SENT'?' 1rem 1rem 1rem auto':'1rem auto 1rem 1rem';
-	let bgColor=props.message.TYPE==='SENT'?'rgb(200,255,255)':'rgb(200,255,200)';
+	let bgColor=props.message.TYPE==='SENT'?'rgb(200,230,255)':'rgb(200,255,200)';
 	let opacity=(props.message.TYPE==='SENT'&&props.message.status!=='delivered')?'0.5':'1'
 
 	
@@ -684,7 +684,7 @@ function TextBox(props){
 	}
 
 	return <div  style={{gridArea:'textbox',display:'flex'}}>
-			<textarea style={{maxWidth:'100%',width:'80rem', marginLeft:'auto'}}
+			<textarea style={{maxWidth:'100%',width:'80rem', marginLeft:'auto',resize:'none'}}
 			value={props.textToSend} 
 			onChange={(ev)=>{
 				props.setTextToSend(ev.target.value);

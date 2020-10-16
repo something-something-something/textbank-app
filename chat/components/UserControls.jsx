@@ -5,6 +5,7 @@ import {useRouter} from 'next/router'
 export function AllUsersControls(){
 	const[users,setUsers]=useState([])
 	const [invites,setInvites]=useState([]);
+	const [resetRequests,setResetRequests]=useState([]);
 	const fetchData=async ()=>{
 		let res=await queryGraphQL(`
 			query{
@@ -19,6 +20,14 @@ export function AllUsersControls(){
 					email
 					dateCreated
 				}
+				allPasswordResetRequests{
+					id
+					user{
+						id
+						email
+					}
+					dateCreated
+				}
 			}
 
 
@@ -26,6 +35,7 @@ export function AllUsersControls(){
 		
 		setUsers(res.data.allUsers);
 		setInvites(res.data.allEmailInvites);
+		setResetRequests(res.data.allPasswordResetRequests);
 	}
 
 	useEffect(()=>{
@@ -35,8 +45,10 @@ export function AllUsersControls(){
 
 	return (<div>
 		<InviteUserForm fetchData={fetchData}/>
+		email Invites:
 		<EmailInviteTable invites={invites} fetchData={fetchData}/>
-
+		Password Resets
+		<PasswordResetTable resetRequests={resetRequests} fetchData={fetchData} />
 		<NewUserForm fetchData={fetchData}/>
 		<UserTable users={users}  fetchData={fetchData} />
 	</div>);
@@ -111,6 +123,46 @@ function EmailInviteTable(props){
 		</tbody>
 	</table>);
 }
+
+function PasswordResetTable(props){
+	const deleteResetReq=async(resetReqID)=>{
+		await queryGraphQL(`
+			mutation($rereq:ID!){
+				deletePasswordResetRequest(id:$rereq){
+					id
+				}
+			}
+		
+		`,
+		{
+			rereq:resetReqID
+		});
+		props.fetchData();
+	}
+
+
+	return (<table>
+		<thead>
+			<tr>
+				<th>User</th>
+				<th>Date</th>
+				<th>Delete</th>
+			</tr>
+		</thead>
+		<tbody>
+			{props.resetRequests.map((rereq)=>{
+				return(
+					<tr key={rereq.id}>
+						<td>{rereq.user.email}</td>
+						<td>{rereq.dateCreated}</td>
+						<td><button onClick={()=>{deleteResetReq(rereq.id)}}>Delete</button></td>
+					</tr>
+				)
+			})}
+		</tbody>
+	</table>);
+}
+
 
 
 function NewUserForm(props){

@@ -697,6 +697,32 @@ keystone.createList('EmailInvite',{
 	}
 });
 
+keystone.createList('PasswordResetRequest',{
+	access:{
+		create:()=>{return false},
+		read:AuthUserIsAdmin,
+		update:()=>{return false},
+		delete:AuthUserIsAdmin,
+	},
+	fields:{
+		tokenHash:{
+			type:Text,
+			isRequired:true,
+			access:{
+				read:()=>{return false}
+			}
+		},
+		user:{
+			type:Relationship,
+			ref:'User'
+		},
+		dateCreated:{
+			type:DateTimeUtc,
+			isRequired:true,
+		}
+	}
+});
+
 keystone.createList('User',{
 	access:{
 		create:AuthUserIsAdmin,
@@ -854,6 +880,12 @@ keystone.extendGraphQLSchema({
 		},
 		{
 			type:'type createVolunteerFromTokenOutput { success: Boolean!}'
+		},
+		{
+			type:'type requestEmailPasswordResetOutput { success: Boolean!}'
+		},
+		{
+			type:'type resetPasswordOutput { success: Boolean!}'
 		}
 	],
 	mutations: [
@@ -995,6 +1027,116 @@ keystone.extendGraphQLSchema({
 				return {
 					success:false
 				}
+			}
+		},
+		{
+			schema:'requestEmailPasswordReset(email:String!):requestEmailPasswordResetOutput',
+			resolver:async(par,args,context,info,extra)=>{
+				try{
+					let token=crypto.randomBytes(20).toString('base64');
+					let tokenHash=await bycrypt.hash(token,10);
+
+					let users=await getItems({keystone,listKey:'User',returnFields:'id email'});
+					let theUser=users.find((u)=>{return u.email===args.email});
+					if(theUser===undefined){
+						return {
+							success:true
+						};
+					}
+
+					await createItem({keystone,listKey:'PasswordResetRequest',
+						item:{
+							user:{
+								connect:{
+									id:theUser.id
+								}
+							},
+							tokenHash:tokenHash,
+							dateCreated:(new Date()).toISOString(),
+						}
+					});
+					let t=await mail.createTransport();
+					let email=await mail.email(t,theUser.email,'Textbank Password Reset',`
+
+					A password reset was requested for:${theUser.email} If you did not request this please ignore.
+					Email is case sensitive.
+					reset here: 
+					${process.env.TEXTBANKURL}resetpassword?token=${token}
+					
+					`,
+					`
+					A password reset was requested for:${theUser.email} If you did not request this please ignore.
+					Email is case sensitive.
+					reset here: 
+					<a href="${process.env.TEXTBANKURL}resetpassword?token=${encodeURIComponent( token)}">Reset Password</a>
+					or copy and paste this address in the address bar: ${process.env.TEXTBANKURL}resetpassword?token=${encodeURIComponent(token)}
+
+
+					`);
+					console.log('email sent')
+					if(process.env.STMPSERVERHOST==='smtp.ethereal.email'){
+						console.log('showing test')
+						console.log('Email preview: '+nodemailer.getTestMessageUrl(email));
+						console.log('done test send')
+					}
+					console.log('done')
+
+					return {
+						success:true
+					};
+				}
+				catch(err){
+					return {
+						success:true
+					};
+				}
+			}	
+		},
+		{
+			schema:'resetPassword(token:String!,password:String!):resetPasswordOutput',
+			resolver:async (par,args,context,info,extra)=>{
+				try{
+					console.log('reseting password')
+					let resetReqs=getItems({keystone,listKey:'PasswordResetRequest',returnFields:'id tokenHash user{ id } dateCreated '});
+					console.log((await resetReqs).length);
+					let validResetReqs=(await resetReqs).filter((el)=>{
+						let dc=(new Date(el.dateCreated)).getTime();
+						let bcRes=bycrypt.compareSync(args.token,el.tokenHash);
+						console.log('testing invites');
+						console.log(dc);
+						console.log(bcRes);
+						return (dc>(Date.now()-1000*60*30))&&bcRes
+					});
+					if(validResetReqs.length>0){
+						let theResetReq=validResetReqs[0];
+						//console.log(theResetReq);
+						await deleteItem({keystone,listKey:'PasswordResetRequest',itemId:theResetReq.id});
+						await updateItem({
+							keystone,listKey:'User',item:{
+								id:theResetReq.user.id,
+								data:{
+									password:args.password
+								}
+							},
+							returnFields:'id'
+						});
+						return  {
+							success:true
+						};
+					}
+					else{
+						return  {
+							success:false
+						};
+					}
+				}
+				catch(err){
+					console.log(err);
+					return {
+						success:false
+					};
+				}
+
 			}
 		}
 	]

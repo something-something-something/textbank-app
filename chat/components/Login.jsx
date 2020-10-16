@@ -64,6 +64,19 @@ export function LoginForm(){
 		fetchData();
 	}
 
+	const reqPassReset=async ()=>{
+		await queryGraphQL(`
+		mutation ($email:String!){
+			requestEmailPasswordReset(email:$email){
+				success
+			}
+		}
+		`,
+		{
+			email:userName
+		});
+		alert('Email sent if that was an existing email.')
+	}
 	return (<div>
 		
 		{authFailure&&(<div>
@@ -86,7 +99,12 @@ export function LoginForm(){
 			}}>Sign Out</button>
 			
 		</>)}
-
-
+		{user===null&&(
+			<details>
+				<summary>Forgot Password?</summary>
+				Email:<input type="text" value={userName} onChange={(ev)=>{setUserName(ev.target.value)}}/>
+				<button onClick={reqPassReset}>Send Reset email</button>
+			</details>
+		)}
 	</div>);
 }

@@ -1,7 +1,7 @@
 import {useState,useEffect} from 'react';
 import {queryGraphQL} from '../lib/graphql';
 import {useRouter} from 'next/router'
-
+import {vanUrlID} from '../lib/van';
 export function ExportAnswers(){
 
 
@@ -162,9 +162,7 @@ function AnswerTable(props){
 }
 
 
-function vanUrlID(vanid){
-	return vanid.toString(16).split('').reverse().join('').toUpperCase()+ (vanid%17+10).toString(36).toUpperCase();
-}
+
 
 function AnswerRow(props){
 	return (<tr>

@@ -1,6 +1,6 @@
 import {useState,useEffect} from 'react';
 import {queryGraphQL} from '../lib/graphql';
-
+import {vanUrlID} from '../lib/van';
 
 export function ScriptControls(props){
 	const [scripts,setScripts]=useState([]);
@@ -47,6 +47,7 @@ export function ScriptControls(props){
 						phone
 						users{
 							id
+							email
 						}
 					},
 					users{
@@ -1015,6 +1016,7 @@ function ContactTable(props){
 					<th style={tableheadingStyle}>Name</th>
 					<th style={tableheadingStyle}>VanID</th>
 					<th style={tableheadingStyle}>Phone</th>
+					<th style={tableheadingStyle}>Users</th>
 					<th style={tableheadingStyle}>Controls</th>
 				</tr>
 			</thead>
@@ -1047,8 +1049,17 @@ function ContactTableViewRow(props){
 				} onChange={()=>{props.toggleSelectedRows(props.contact.id)}}/>
 			</td>
 			<td>{props.contact.name} </td>
-			<td>{props.contact.vanid} </td>
+			<td>
+				{props.contact.vanid} 
+				{ !Number.isNaN(parseInt(props.contact.vanid,10))&&(
+ 				<>  <a target="_blank" rel="noreferrer" href={'https://www.votebuilder.com/ContactsDetails.aspx?VANID=EID'+vanUrlID( parseInt(props.contact.vanid,10))}>VAN</a></>
+			)}
+			
+			</td>
 			<td>{props.contact.phone} </td>
+			<td>
+				{props.contact.users.map((u)=>{return u.email}).join(',')}
+			</td>
 			<td>
 				<button onClick={()=>{props.toggleEditRows(props.contact.id)}}> Edit</button>
 				<button onClick={()=>{deleteContact(props.contact.id)}}>Delete</button>
@@ -1094,6 +1105,27 @@ function ContactTableEditRow(props){
 		props.fetchData();
 	}
 
+	const removeUser=async(uid)=>{
+		await queryGraphQL(`
+			mutation ($cid:ID!,$uid:ID!){
+				updateContact(id:$cid,data:{
+					users:{
+						disconnect:{
+							id:$uid
+						}
+					}
+				}){
+					id
+				}
+			}`,
+		{
+			cid:props.contact.id,
+			uid:uid
+		});
+	
+		props.fetchData();
+	}
+
 	return(
 		<tr>
 			<td>
@@ -1111,6 +1143,9 @@ function ContactTableEditRow(props){
 			</td>
 			<td>
 				<input value={phone} onChange={(ev)=>{setPhone(ev.target.value)}}/> 
+			</td>
+			<td>
+			<>	{props.contact.users.map((u)=>{return (<button key={u.id} onClick={()=>{removeUser(u.id)}}>X {u.email}</button>) })}</>
 			</td>
 			<td>
 				<button onClick={()=>{props.toggleEditRows(props.contact.id)}}> Don't Save</button>
