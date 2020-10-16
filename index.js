@@ -1150,7 +1150,9 @@ keystone.extendGraphQLSchema({
 module.exports={
 	keystone,
 	apps:[
-		new GraphQLApp(),
+		new GraphQLApp({apollo:{
+			tracing:false
+		}}),
 		new NextApp({dir:'chat'})
 	],
 	configureExpress:(app)=>{
