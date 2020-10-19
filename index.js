@@ -551,16 +551,33 @@ keystone.createList('Contact',{
 					let received=await getItems({keystone,listKey:'ReceivedText',returnFields:'date',where:{from:item.phone}});
 					let both=sent.concat(received);
 					//console.log(both);
-					both=both.sort((a,b)=>{
-						return (new Date(b.date)).getTime() - (new Date(a.date)).getTime();
-					});
+					// both=both.sort((a,b)=>{
+					// 	if(a.date===b.date){
+					// 		return 0
+					// 	}
+					// 	else if(a.date<b.date){
+					// 		return 1;
+					// 	} 
+					// 	else{
+					// 		return -1;
+					// 	} 
+						
+					// });
 
-					if(both.length>0){
-						return (new Date(both[0].date)).getTime();
-					}
-					else{
+					// if(both.length>0){
+					// 	return (new Date(both[0].date)).getTime();
+					// }
+					// else{
+					// 	return 0;
+					// }
+					if(both.length===0){
 						return 0;
 					}
+					let mostRecent=both.map((el)=>{
+						return el.date;
+					}).sort().reverse()[0];
+					return (new Date(mostRecent)).getTime();
+					
 				}
 				catch(err){
 					return 0;

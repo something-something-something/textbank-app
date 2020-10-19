@@ -219,7 +219,7 @@ export function Chat(){
 				fetchData()
 				
 				
-			},(Math.floor(Math.random()*10)+5)*1000);
+			},(Math.floor(Math.random()*10)+10)*1000);
 
 
 			return ()=>{clearInterval(timer)};
