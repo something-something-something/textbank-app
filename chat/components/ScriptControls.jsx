@@ -794,6 +794,11 @@ function BulkAddContacts(props){
 		let headers=lines[0].split('\t');
 		//console.log(headers)
 		vanidPos=headers.findIndex((el)=>{return el.trim().startsWith('Voter File VANID')});
+		//work around campaign builder having diffrent header for van id
+		if(vanidPos===-1){
+			console.log('FALLBACK VANID SEARCH');
+			vanidPos=headers.findIndex((el)=>{return el.trim().startsWith('VANID')});
+		}
 		cellPos=headers.findIndex((el)=>{return el.trim().startsWith('Cell Phone')});
 		namePos=headers.findIndex((el)=>{return el.trim().startsWith('Name')});
 
