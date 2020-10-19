@@ -8,4 +8,7 @@ RUN npm install
 COPY ./ /home/node/app/
 
 #RUN npm run build
+USER root
+RUN chown -R node ./
+USER node
 CMD npm run build && npm run start
