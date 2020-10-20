@@ -279,7 +279,12 @@ function ContactsBar(props){
 			if(b.completed&&!a.completed){
 				return -1
 			}
-		
+			if(a.lastText===0&&b.lastText!==0){
+				return -1;
+			}
+			if(b.lastText===0&&a.lastText!==0){
+				return 1;
+			}
 
 			return b.lastText - a.lastText;
 		}).filter((el)=>{
@@ -317,6 +322,9 @@ function ContactsBar(props){
 			}
 			if(el.id===props.contactID){
 				classes.push(styles.contactButtonSelected);
+			}
+			if(el.lastText===0){
+				classes.push(styles.contactButtonNeverContacted);
 			}
 
 
