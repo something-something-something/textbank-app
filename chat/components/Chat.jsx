@@ -676,6 +676,7 @@ function Message(props){
 			width:'max-content',
 			maxWidth:'50%',
 			opacity:opacity,
+			whiteSpace:'pre-wrap',
 			transition:'opacity 0.5s linear'
 		}
 	
