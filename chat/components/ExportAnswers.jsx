@@ -6,7 +6,9 @@ export function ExportAnswers(){
 
 
 	const [script,setScript]=useState(null);
+	const [showCompleted,setShowCompleted]=useState(true);
 	const router=useRouter();
+
 	let scriptID=router.query.script!==undefined?router.query.script:''
 	const fetchData=async ()=>{
 		let res=await queryGraphQL(`
@@ -23,6 +25,7 @@ export function ExportAnswers(){
 						id
 						name
 						vanid
+						phone
 						completed
 						doNotContact
 						answers{
@@ -57,26 +60,44 @@ export function ExportAnswers(){
 		<div>
 			{script!==null&&(
 				<>
-				<DownloadCSVLink script={script}/>
-				<AnswerTable script={script}/>
+				<div>Script: {script.name}</div>
+				<ContactSelectionOptions showCompleted={showCompleted} setShowCompleted={setShowCompleted}/>
+				<DownloadCSVLink showCompleted={showCompleted} script={script}/>
+				<AnswerTable showCompleted={showCompleted} script={script}/>
 				</>
 			)}
 		
 	</div>);
 }
+
+function ContactSelectionOptions(props){
+	return(<div>
+		Show / Export only completed<input type="checkbox" checked={props.showCompleted} onChange={()=>{props.setShowCompleted(!props.showCompleted)}}/>
+	</div>);
+}
+
+
 function DownloadCSVLink(props){
 
 
 	const makeCSV=()=>{
-		let userheaders=['vanid','name','doNotContact']
+		let userheaders=['vanid','name','doNotContact','phone','completed','vanurl']
 		let questionHeaders=props.script.questions.map((q)=>{
 			return q.headerName;
 		});
 
 		let fieldRows=props.script.contacts.filter((c)=>{
-			return c.completed;
+			
+				return  ( (props.showCompleted&&c.completed) || !props.showCompleted);
+			
+
 		}).map((c)=>{
-			let cells=[c.vanid,c.name,c.doNotContact?'true':'false']
+			let vanurl='';
+			if(!Number.isNaN(parseInt(c.vanid,10))){
+				vanurl='https://www.votebuilder.com/ContactsDetails.aspx?VANID=EID'+vanUrlID( parseInt(c.vanid,10))
+			}
+
+			let cells=[c.vanid,c.name,c.doNotContact?'true':'false',c.phone,c.completed?'completed':'incomplete',vanurl]
 			for(let q of props.script.questions){
 				let ca=c.answers.filter((a)=>{
 					return a.question.id===q.id;
@@ -145,6 +166,7 @@ function AnswerTable(props){
 				<td>vanid</td>
 				<td>name</td>
 				<td>Do not Contact</td>
+				<td>Completed</td>
 				{props.script.questions.map((el)=>{
 					return <td key={el.id}> {el.headerName}</td>;
 				})}
@@ -152,8 +174,8 @@ function AnswerTable(props){
 			</tr>
 		</thead>
 		<tbody>
-			{props.script.contacts.filter((el)=>{
-				return el.completed;
+			{props.script.contacts.filter((c)=>{
+				return ( (props.showCompleted&&c.completed) || !props.showCompleted);
 			}).map((el)=>{
 				return <AnswerRow key={el.id} script={props.script} contact={el}/>
 			})}
@@ -169,6 +191,7 @@ function AnswerRow(props){
 		<td>{props.contact.vanid}</td>
 		<td>{props.contact.name}</td>
 		<td>{props.contact.doNotContact?'true':'false'}</td>
+		<td>{props.contact.completed?'completed':'incomplete'}</td>
 		{props.script.questions.map((q)=>{
 			return (<td key={q.id}>
 				{props.contact.answers.filter((el)=>{
