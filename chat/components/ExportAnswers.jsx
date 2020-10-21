@@ -105,7 +105,7 @@ function DownloadCSVLink(props){
 				if(ca.length!==0){
 					cells.push(ca.map((a)=>{
 						return a.answerText;	
-					}).join('\n\n'));
+					}).join('; '));
 				}
 				else{
 					cells.push('')
@@ -166,6 +166,7 @@ function AnswerTable(props){
 				<td>vanid</td>
 				<td>name</td>
 				<td>Do not Contact</td>
+				<td>Phone</td>
 				<td>Completed</td>
 				{props.script.questions.map((el)=>{
 					return <td key={el.id}> {el.headerName}</td>;
@@ -191,6 +192,7 @@ function AnswerRow(props){
 		<td>{props.contact.vanid}</td>
 		<td>{props.contact.name}</td>
 		<td>{props.contact.doNotContact?'true':'false'}</td>
+		<td>{props.contact.phone}</td>
 		<td>{props.contact.completed?'completed':'incomplete'}</td>
 		{props.script.questions.map((q)=>{
 			return (<td key={q.id}>
