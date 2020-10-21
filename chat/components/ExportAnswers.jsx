@@ -2,6 +2,8 @@ import {useState,useEffect} from 'react';
 import {queryGraphQL} from '../lib/graphql';
 import {useRouter} from 'next/router'
 import {vanUrlID} from '../lib/van';
+import styles from './ExportAnswers.module.css'
+
 export function ExportAnswers(){
 
 
@@ -160,7 +162,7 @@ function AnswerTable(props){
 	// 	}
 	// })
 
-	return (<table>
+	return (<table className={styles.exportTable}>
 		<thead>
 			<tr>
 				<td>vanid</td>
