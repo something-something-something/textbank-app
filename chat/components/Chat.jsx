@@ -6,13 +6,14 @@ export function Chat(){
 	const [textToSend,setTextToSend]=useState('');
 	const router=useRouter();
 	const [notificationPerm,setNotificationPerm]=useState(Notification.permission)
-	
+	const [contacts,setContacts]=useState([]);
+
 	let contactID=router.query.contact!==undefined?router.query.contact:''
 	
 	let scriptID=router.query.script!==undefined?router.query.script:''
 
 	const setContact=(cid)=>{
-		setTextToSend('')
+		setTextToSend('');
 		router.push({
 			pathname:'/chat',
 			query:{
@@ -23,8 +24,7 @@ export function Chat(){
 	}
 	const [results,setResults]=useState({
 		Script:{
-			scriptLines:[],
-			contacts:[]
+			scriptLines:[]
 		}
 	});
 	
@@ -82,95 +82,185 @@ export function Chat(){
 	}
 	const prevContactsRef=useRef();
 	useEffect(()=>{
-		prevContactsRef.current=results.Script.contacts.map((el)=>{return el})
+		prevContactsRef.current=contacts.map((el)=>{return el})
 		
 	})
 	
 
-
-	const fetchData=async()=>{
-			let res=await queryGraphQL(`
-			query ($script: ID!,$contact: ID!, $contactSelected: Boolean!){
-				authenticatedUser{
-					id
-					email
-					nickName
-				}
+	const fetchContactsData=async ()=>{
+		let contactsRes=[];
+		let fetchedContacts=[];
+		let skip=0;
+		let numContactsPerFetch=300;
+		let resCount=await queryGraphQL(`
+			query ($script: ID!){
 				Script(where:{id:$script}){
-					name
-					contacts{
-						name
-						firstName
-						lastName
-						middleName
-						id
-						lastText
-						doNotContact
-						completed
+					_contactsMeta{
+						count
 					}
-					scriptLines{
-						id
-						instructions
-						order
-						en
-						es
-						parent{
+				}
+			}
+		`,{
+			script: scriptID,
+		});
+		let numberOfContacts=resCount.data.Script._contactsMeta.count;
+
+		let fetches=numberOfContacts/numContactsPerFetch
+		
+		const fetchContact= async (skipNum)=>{
+			let res =  queryGraphQL(`
+				query ($script: ID!,$contactSkipNumber:Int,$contactsPerFetch:Int){
+					Script(where:{id:$script}){
+						contacts(first:$contactsPerFetch,skip:$contactSkipNumber){
+							name
+							firstName
+							lastName
+							middleName
 							id
-						}
-						children{
-							id
-						}
-						questions{
-							id
-							questionText
-							suggestedOptions
+							lastText
+							doNotContact
+							completed
 						}
 					}
 					
-				 	selectedContact: contacts(where:{id:$contact})	@include(if: $contactSelected){
+				}
+			`,{
+				script: scriptID,
+				contactSkipNumber:skipNum,
+				contactsPerFetch:numContactsPerFetch
+			});
+			return res;
+		}
+		let fetchesArr=[]
+		for(let i=0;i<fetches;i++){
+			fetchesArr.push(fetchContact(i*numContactsPerFetch));
+		}
+		let allcons=(await Promise.all(fetchesArr)).map((f)=>{
+			return f.data.Script.contacts;
+		}).flat(1);
+		
+		
+		// do {
+		// 	let res = await queryGraphQL(`
+		// 		query ($script: ID!,$contactSkipNumber:Int){
+		// 			Script(where:{id:$script}){
+		// 				contacts(first:250,skip:$contactSkipNumber){
+		// 					name
+		// 					firstName
+		// 					lastName
+		// 					middleName
+		// 					id
+		// 					lastText
+		// 					doNotContact
+		// 					completed
+		// 				}
+		// 			}
+					
+		// 		}
+		// 	`,{
+		// 		script: scriptID,
+		// 		contactSkipNumber:skip
+		// 	});
+		// 	fetchedContacts=res.data.Script.contacts;
+		// 	contactsRes.push(...fetchedContacts);
+		// 	skip+=250;
+		// } while (fetchedContacts.length>0);
+		
+		
+		console.log('Contacts '+allcons.length);
+
+		noteifications( prevContactsRef.current,allcons);
+		setContacts(allcons);
+	}
+
+
+
+	const fetchData=async(options={})=>{
+
+		if(options.skipContacts===undefined){
+			options.skipContacts=false;
+		}
+
+		if(options.skipResults===undefined){
+			options.skipResults=false;
+		}
+
+		if (!options.skipResults) {
+			let res = await queryGraphQL(`
+				query ($script: ID!,$contact: ID!, $contactSelected: Boolean!){
+					authenticatedUser{
 						id
+						email
+						nickName
+					}
+					Script(where:{id:$script}){
 						name
-						firstName
-						sentTexts{
+						scriptLines{
 							id
-							content
-							date
-							status
-						},
-						receivedTexts{
-							id
-							content
-							date
-						}
-						doNotContact
-						completed
-						language
-						answers{
-							id
-							answerText
-							question{
+							instructions
+							order
+							en
+							es
+							parent{
 								id
+							}
+							children{
+								id
+							}
+							questions{
+								id
+								questionText
+								suggestedOptions
+							}
+						}
+						
+						selectedContact: contacts(where:{id:$contact})	@include(if: $contactSelected){
+							id
+							name
+							firstName
+							sentTexts{
+								id
+								content
+								date
+								status
+							},
+							receivedTexts{
+								id
+								content
+								date
+							}
+							doNotContact
+							completed
+							language
+							answers{
+								id
+								answerText
+								question{
+									id
+								}
 							}
 						}
 					}
+					
 				}
-				
-			}
-			`,{
-				script:scriptID,
-				contact:contactID,
-				contactSelected: (contactID!=='')
+			`, {
+				script: scriptID,
+				contact: contactID,
+				contactSelected: (contactID !== '')
 			});
 
-		if(res.data.authenticatedUser===null){
-			window.location.pathname='/login';
-		}
-		noteifications( prevContactsRef.current,res.data.Script.contacts)
-		
+			if (res.data.authenticatedUser === null) {
+				window.location.pathname = '/login';
+			}
 
+			setResults(res.data);
+		}
+
+		if(!options.skipContacts){
+			fetchContactsData();
+		}
 		
-		setResults(res.data);
-		return res.data;
+		//return res.data;
 	}
 
 
@@ -212,21 +302,28 @@ export function Chat(){
 	useEffect(()=>{
 		if(scriptID!==''){
 			fetchData();
-		
-			let timer=setInterval(async ()=>{
-				console.log('updating');
-				
-				fetchData()
-				
-				
-			},(Math.floor(Math.random()*10)+10)*1000);
-
-
-			return ()=>{clearInterval(timer)};
 		}
+	},[scriptID]);
+
+	useEffect(()=>{
+		let timer=setInterval(async ()=>{
+			console.log('updating');
+			console.log(contactID)
+			fetchData();
+			
+			
+		},(Math.floor(Math.random()*10)+10)*1000);
+
+
+		return ()=>{clearInterval(timer)};
 	},[scriptID,contactID])
 
-	
+
+	useEffect(()=>{
+		if(scriptID!==''){
+			fetchData({skipContacts:true});
+		}
+	},[contactID]);
 
 	let textReplacmentData={
 		contact:{}
@@ -248,7 +345,7 @@ export function Chat(){
 				</>
 			)}
 		</div>
-		<ContactsBar contacts={results.Script.contacts} setContact={setContact} contactID={contactID}/>
+		<ContactsBar contacts={contacts} setContact={setContact} contactID={contactID}/>
 		
 		{results.Script.selectedContact!==undefined&&(
 			<>
@@ -356,7 +453,7 @@ function Script(props){
 			lang:lang
 		});
 
-		props.fetchData();
+		props.fetchData({skipContacts:true});
 	};
 
 	const updateNickName=async ()=>{
@@ -374,7 +471,7 @@ function Script(props){
 			nick:nickName,
 		});
 
-		props.fetchData();
+		props.fetchData({skipContacts:true});
 	};
 
 	const toggleDoNotContact=async()=>{
@@ -564,7 +661,7 @@ function ScriptQuestionNewAnswer(props){
 			question:props.question.id,
 			text:props.answerText
 		});
-		props.fetchData();
+		props.fetchData({skipContacts:true});
 	}
 	return (<button className={styles.scriptLineButton} onClick={()=>{makeAnswer()}}>{props.answerText===''?'Custom Answer':props.answerText}</button>);
 }
@@ -591,7 +688,7 @@ function ScriptQuestionAnswer(props){
 			text:answerText
 		});
 		setEditMode(false);
-		props.fetchData();
+		props.fetchData({skipContacts:true});
 	}
 
 	const deleteAnswer=async()=>{
@@ -605,7 +702,7 @@ function ScriptQuestionAnswer(props){
 		{
 			id:props.answer.id,
 		});
-		props.fetchData();
+		props.fetchData({skipContacts:true});
 	}
 	return (<div className={styles.scriptAnswer}> 
 		{!editMode&&(<>
@@ -646,9 +743,19 @@ function Conversation(props){
 
 	let theMessages=messages.map((el)=>{
 		return <Message key={el.id} message={el}/>
-	})
+	});
 
-	return <div style={{gridArea:'conv',overflow:'auto'}}>
+	let messageIds=messages.map((el)=>{
+		return el.id
+	}).sort().join();
+	useEffect(()=>{
+		document.getElementById('messagebox').scroll({
+			top:document.getElementById('messagebox').scrollHeight,
+			left:0,
+			behavior:'smooth'
+		});
+	},[messageIds])
+	return <div id="messagebox" style={{gridArea:'conv',overflow:'auto'}}>
 		{theMessages}
 		
 	</div>
