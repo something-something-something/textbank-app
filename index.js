@@ -588,6 +588,10 @@ keystone.createList('Contact',{
 			type:Checkbox,
 			defaultValue:false
 		},
+		contacted:{
+			type:Checkbox,
+			defaultValue:false
+		},
 		vanid:{
 			type:Text,
 			defaultValue:'',
@@ -824,7 +828,7 @@ const sendText=async (par,args,context,info,extra)=>{
 
 	let contact;
 	try{
-		contact=await getItem({keystone,listKey:'Contact',itemId:args.contact, returnFields:'phone'});
+		contact=await getItem({keystone,listKey:'Contact',itemId:args.contact, returnFields:'phone contacted id'});
 		console.log(contact);
 		if(!/^\+1\d{10}$/.test(contact.phone)){
 			console.log('non valid phone');
@@ -847,7 +851,7 @@ const sendText=async (par,args,context,info,extra)=>{
 			from:process.env.TWILNUMBER,
 			to:contact.phone
 		});
-		console.log(message);
+		//console.log(message);
 		twilMessage=message
 		// twilID=message.sid;
 	}
@@ -874,7 +878,24 @@ const sendText=async (par,args,context,info,extra)=>{
 				twilDate:(new Date(twilMessage.dateCreated)).toISOString()
 			},
 			context:serverContext(keystone)
-		})
+		});
+		if(contact.contacted!==true){
+			await updateItem({
+				keystone,listKey:'Contact',item:{
+					id:contact.id,
+					data:{
+						contacted:true
+					}
+				},
+				returnFields:'id'
+			});
+			//console.log('contacts contacted status  changed')
+			//console.log(contact);
+		}
+		// else{
+		// 	console.log('contacts contacted status not changed')
+		// 	console.log(contact);
+		// }
 	}
 	return {
 		content:args.content,

@@ -118,6 +118,7 @@ export function Chat(){
 							middleName
 							id
 							lastText
+							contacted
 							doNotContact
 							completed
 						}
@@ -218,6 +219,7 @@ export function Chat(){
 							id
 							name
 							firstName
+							contacted
 							sentTexts{
 								id
 								content
@@ -376,10 +378,10 @@ function ContactsBar(props){
 			if(b.completed&&!a.completed){
 				return -1
 			}
-			if(a.lastText===0&&b.lastText!==0){
+			if(a.contacted!==true&&b.contacted===true){
 				return -1;
 			}
-			if(b.lastText===0&&a.lastText!==0){
+			if(b.contacted!==true&&a.contacted===true){
 				return 1;
 			}
 
@@ -420,7 +422,7 @@ function ContactsBar(props){
 			if(el.id===props.contactID){
 				classes.push(styles.contactButtonSelected);
 			}
-			if(el.lastText===0){
+			if(el.contacted!==true){
 				classes.push(styles.contactButtonNeverContacted);
 			}
 
@@ -488,7 +490,22 @@ function Script(props){
 
 		props.fetchData();
 	}
-	
+	const toggleContactContacted=async()=>{
+		await queryGraphQL(`
+			mutation($cid:ID!,$status:Boolean!){
+				updateContact(id:$cid,data:{
+					contacted:$status
+				}){
+					id
+				}
+			}
+		`,{
+			cid:props.contact.id,
+			status:!props.contact.contacted
+		});
+
+		props.fetchData();
+	}
 
 
 
@@ -504,6 +521,9 @@ function Script(props){
 			<button onClick={toggleDoNotContact}>
 			{props.contact.doNotContact?'Remove From Do Not Contact':'Add to Do Not Contact'}
 			</button> 
+		</div>
+		<div>
+			Contacted:<input type="checkbox" checked={props.contact.contacted===true} onChange={toggleContactContacted}/>
 		</div>
 
 		<br/>
