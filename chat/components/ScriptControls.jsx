@@ -43,6 +43,7 @@ export function ScriptControls(props){
 						firstName
 						middleName
 						lastName
+						doNotContact
 						vanid
 						phone
 						users{
@@ -1058,9 +1059,12 @@ function ContactTableViewRow(props){
 		);
 		props.fetchData();
 	}
-	
+	let rowstyle={};
+	if(props.contact.doNotContact){
+		rowstyle.backgroundColor='rgb(255,150,150)'
+	}
 	return (
-		<tr>
+		<tr style={rowstyle}>
 			<td>
 				<input type="checkbox" checked={
 					props.selectedRows.includes(props.contact.id)
@@ -1143,9 +1147,12 @@ function ContactTableEditRow(props){
 	
 		props.fetchData();
 	}
-
+	let rowstyle={};
+	if(props.contact.doNotContact){
+		rowstyle.backgroundColor='rgb(255,150,150)'
+	}
 	return(
-		<tr>
+		<tr style={rowstyle}>
 			<td>
 				<input type="checkbox" checked={
 					props.selectedRows.includes(props.contact.id)
