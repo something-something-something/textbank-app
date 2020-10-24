@@ -56,6 +56,9 @@ export function ScriptControls(props){
 						contacts{
 							id
 							name
+							script{
+								id
+							}
 						}
 					}
 				}
@@ -180,7 +183,9 @@ function ScriptUsers(props){
 		{props.script.users.map((u)=>{
 			return <li key={u.id}>{u.email} <button onClick={()=>{removeUser(u.id)}}>Remove</button>
 			<details><summary>Contacts</summary>
-				{u.contacts.map((c)=>{
+				{u.contacts.filter((c)=>{
+					return c.script.id===props.script.id;
+				}).map((c)=>{
 					return <div key={c.id}>{c.name} <button onClick={()=>{ removeContact(u.id,c.id)}}>Remove</button> </div>
 				})}
 			
@@ -724,20 +729,27 @@ function AddScriptLineButton(props){
 
 function DeleteScriptButton(props){
 	const deleteScript=async (script)=>{
-		await queryGraphQL(`
-			mutation ($scriptID: ID!,$lineIDs: [ID!]!){
-				deleteScriptLines(ids:$lineIDs){
-					id
+		if(window.confirm('Are you sure you want to delete this script?')&&window.prompt('To confirm delete please type in the script name:')===props.script.name){
+			await queryGraphQL(`
+				mutation ($scriptID: ID!,$lineIDs: [ID!]!){
+					deleteScriptLines(ids:$lineIDs){
+						id
+					}
+					deleteScript(id:$scriptID){
+						id
+					}
 				}
-				deleteScript(id:$scriptID){
-					id
-				}
-			}
-		`,{
-			scriptID:script.id,
-			lineIDs:script.scriptLines.map((line)=>{return line.id})
-		});
-		await props.fetchData();
+			`, {
+				scriptID: script.id,
+				lineIDs: script.scriptLines.map((line) => { return line.id })
+			});
+			await props.fetchData();
+		}
+		else{
+			alert('Deletion canceled!')
+		}
+
+		
 	}
 
 	return <button onClick={()=>{deleteScript(props.script)}}>Delete Script</button>
@@ -1014,6 +1026,7 @@ function ContactTable(props){
 		</select>
 		<button onClick={deleteSelected}>Delete Selected</button>
 		<button onClick={selectAll}>Select All</button>
+		<button onClick={()=>{setSelectRows([])}}>Unselect All</button>
 		<table>
 			<thead>
 				<tr>
