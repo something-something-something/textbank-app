@@ -423,9 +423,11 @@ function ContactsBar(props){
 				classes.push(styles.contactButtonSelected);
 			}
 			if(el.contacted!==true){
-				classes.push(styles.contactButtonNeverContacted);
+				classes.push(styles.contactButtonNotYetTexted);
 			}
-
+			if(el.lastText===0){
+				classes.push(styles.contactButtonNeverEverTexted);
+			}
 
 			return (<button key={el.id} onClick={()=>{props.setContact(el.id)}}
 			className={classes.join(' ')}
